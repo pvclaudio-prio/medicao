@@ -58,20 +58,26 @@ def extrair_linhas_com_gpt(linhas_ruins):
     resultados = []
 
     prompt_base = """
-Você é um especialista em boletins de medição. Dado um conjunto de linhas desformatadas, extraia os dados com os campos:
+Você é um especialista em boletins de medição. Dado um conjunto de linhas desformatadas, extraia os dados com os seguintes campos, retornando um JSON válido:
 
-- função
-- nome
-- período_inicio (formato YYYY-MM-DD)
-- período_fim (formato YYYY-MM-DD)
-- quantidade (número)
-- valor_unitario (float)
-- valor_total (float)
+- função: cargo da pessoa.
+- nome: nome completo do profissional.
+- período_inicio: data de início no formato "YYYY-MM-DD". Exemplo: "17/09" vira "2024-09-17".
+- período_fim: data final no formato "YYYY-MM-DD". Exemplo: "01/10" vira "2024-10-01".
+- quantidade: número inteiro ou decimal, sem símbolos.
+- valor_unitario: número decimal, com ponto como separador decimal.
+- valor_total: número decimal, com ponto como separador decimal.
+
+Importante:
+- Remova qualquer símbolo como "R$".
+- Corrija vírgulas e pontos para respeitar o formato decimal padrão (ex: "8.312,50" → 8312.50).
+- Todas as datas são do ano de 2024.
+- O resultado deve ser uma lista de objetos JSON. Não adicione comentários nem formate como Markdown.
 
 Exemplo de entrada:
 1 Montador de Andaime Wesley dos Santos X 17/09 - 01/10 145 93,75 8.312,50
 
-Saída:
+Saída esperada:
 [
   {
     "função": "Montador de Andaime",
@@ -86,6 +92,7 @@ Saída:
 
 Agora processe as seguintes linhas:
 """
+
     batch_size = 5
     for i in range(0, len(linhas_ruins), batch_size):
         lote = linhas_ruins[i:i + batch_size]
