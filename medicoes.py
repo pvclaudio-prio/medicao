@@ -11,21 +11,33 @@ st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 #--------------------------------------
 #FUNÇÕES
 #---------------------------------------
-def extrair_linhas_boletim(texto):
+def extrair_linhas_boletim_debug(texto):
+    import re
+    import pandas as pd
+    from datetime import datetime
+
     linhas = texto.split("\n")
     registros = []
 
+    # Regex atual (padrão esperado)
     regex_linha = re.compile(
-        r"(?P<funcao>.+?)\s+(?P<nome>[\w\s\.]+?)\s+X\s+(?P<qtd>\d+)\s+R\$ (?P<valor_unit>[\d,\.]+)\s+R\$ (?P<valor_total>[\d,\.]+)"
+        r"(?P<funcao>.+?)\s+(?P<nome>[\w\s\.]+?)\s+X\s+(?P<qtd>\d+)\s+R\$ ?(?P<valor_unit>[\d\.,]+)\s+R\$ ?(?P<valor_total>[\d\.,]+)"
     )
 
     regex_periodo = re.compile(r"(\d{2}/\d{2})\s*-\s*(\d{2}/\d{2})")
 
     periodo_padrao = None
+    total_linhas = 0
+    linhas_com_match = 0
+    linhas_sem_match = []
 
     for linha in linhas:
+        total_linhas += 1
+        st.code(linha, language="text")
+
         match = regex_linha.search(linha)
         if match:
+            linhas_com_match += 1
             periodo = regex_periodo.search(linha)
             if periodo:
                 data_ini, data_fim = periodo.groups()
@@ -48,6 +60,15 @@ def extrair_linhas_boletim(texto):
                 "período_fim": data_fim,
                 "tipo_linha": "normal"
             })
+        else:
+            linhas_sem_match.append(linha)
+
+    st.markdown(f"✅ **{linhas_com_match} de {total_linhas} linhas** capturadas com sucesso.")
+    if linhas_sem_match:
+        st.markdown("⚠️ **Linhas sem correspondência com o padrão:**")
+        for linha in linhas_sem_match:
+            st.text(f"❌ {linha}")
+
     return pd.DataFrame(registros)
 
 #---------------------------------------
@@ -110,7 +131,7 @@ if menu == "📤 Upload de Arquivos":
 
             st.text_area("📝 Conteúdo da medição (preview)", texto_medicao[:1500], height=200)
 
-            df_medicao = extrair_linhas_boletim(texto_medicao)
+            df_medicao = extrair_linhas_boletim_debug(texto_medicao)
             st.markdown("### 📊 Tabela Estruturada")
             st.dataframe(df_medicao)
 
