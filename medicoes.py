@@ -111,11 +111,12 @@ Agora processe as seguintes linhas:
 #---------------------------------------
 
 menu = st.sidebar.radio("Navegar para:", [
-    "📤 Upload de Arquivos",
-    "🔍 Conciliação de Preços",
-    "🧮 Verificação de Duplicidade",
-    "🤖 Análise IA Red Flags",
-    "📄 Relatório Final"
+    "🏠 Dashboard",
+    "📤 Upload de Documentos",
+    "🔍 Conciliação de Valores",
+    "📑 Verificar Duplicidade",
+    "🤖 Análise com IA",
+    "📊 Relatório Final"
 ])
 
 #---------------------------------------
