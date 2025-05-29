@@ -1,57 +1,62 @@
 import streamlit as st
-import streamlit as st
 import pdfplumber
-import os
 import tempfile
+import os
 
-st.set_page_config(page_title="Conciliação de Medições", layout="wide")
-st.sidebar.image("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
+st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
-st.markdown("# 🔧 Sistema de Conciliação de Boletins de Medição")
-st.markdown("""
-Este sistema permite:
-- Upload de contratos e boletins de medição
-- Verificação de preços divergentes
-- Detecção de duplicidades de profissionais
-- Geração de relatório final com análises via IA (GPT-4o)
-""")
+# MENU LATERAL CUSTOMIZADO
+menu = st.sidebar.radio("Navegar para:", [
+    "📤 Upload de Arquivos",
+    "🔍 Conciliação de Preços",
+    "🧮 Verificação de Duplicidade",
+    "🤖 Análise IA Red Flags",
+    "📄 Relatório Final"
+])
 
-st.set_page_config(page_title="Upload de Arquivos", layout="wide")
+# 📤 ETAPA 1 — Upload de Arquivos
+if menu == "📤 Upload de Arquivos":
+    st.title("📤 Upload de Arquivos de Contrato e Boletins")
 
-st.markdown("## 📤 Upload de Arquivos de Contrato e Boletins")
+    uploaded_files = st.file_uploader(
+        "Envie os arquivos de contrato e boletins de medição (PDF)",
+        type=["pdf"],
+        accept_multiple_files=True
+    )
 
-uploaded_files = st.file_uploader(
-    "Envie os arquivos de contrato e boletins de medição (PDF)",
-    type=["pdf"],
-    accept_multiple_files=True
-)
-
-if uploaded_files:
-    st.success(f"{len(uploaded_files)} arquivo(s) carregado(s).")
-    with st.expander("📋 Arquivos carregados"):
+    if uploaded_files:
+        st.success(f"{len(uploaded_files)} arquivo(s) carregado(s).")
         for file in uploaded_files:
-            st.write(f"- {file.name}")
+            st.subheader(f"📄 {file.name}")
+            tipo = "Contrato" if file.name.startswith("46") else "Boletim"
+            st.markdown(f"**Classificação automática:** `{tipo}`")
 
-    st.markdown("---")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(file.read())
+                tmp_path = tmp.name
 
-    for file in uploaded_files:
-        st.subheader(f"📄 {file.name}")
+            with pdfplumber.open(tmp_path) as pdf:
+                texto_completo = "\n".join([page.extract_text() or "" for page in pdf.pages])
 
-        # Grava o PDF temporariamente
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(file.read())
-            tmp_path = tmp.name
+            st.text_area("📝 Pré-visualização do conteúdo (texto extraído)", texto_completo[:3000], height=300)
+            os.unlink(tmp_path)
 
-        # Determina o tipo (Contrato ou Medição)
-        tipo = "Contrato" if file.name.startswith("46") else "Boletim"
-        st.markdown(f"**Classificação automática:** `{tipo}`")
+# 🔍 ETAPA 2 — Conciliação de Preços
+elif menu == "🔍 Conciliação de Preços":
+    st.title("🔍 Conciliação de Preços")
+    st.warning("Funcionalidade em desenvolvimento. Aguarde a próxima etapa.")
 
-        # Extrai texto bruto com pdfplumber
-        with pdfplumber.open(tmp_path) as pdf:
-            texto_completo = ""
-            for page in pdf.pages:
-                texto_completo += page.extract_text() + "\n"
+# 🧮 ETAPA 3 — Verificação de Duplicidade
+elif menu == "🧮 Verificação de Duplicidade":
+    st.title("🧮 Verificação de Duplicidade")
+    st.warning("Funcionalidade em desenvolvimento. Aguarde a próxima etapa.")
 
-        st.text_area("📝 Pré-visualização do conteúdo (texto extraído)", texto_completo[:3000], height=300)
+# 🤖 ETAPA 4 — Análise IA Red Flags
+elif menu == "🤖 Análise IA Red Flags":
+    st.title("🤖 Análise Inteligente de Red Flags")
+    st.warning("Funcionalidade em desenvolvimento. Aguarde a próxima etapa.")
 
-        os.unlink(tmp_path)  # Limpa o arquivo temporário
+# 📄 ETAPA 5 — Relatório Final
+elif menu == "📄 Relatório Final":
+    st.title("📄 Relatório Final")
+    st.warning("Funcionalidade em desenvolvimento. Aguarde a próxima etapa.")
