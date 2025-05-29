@@ -3,6 +3,10 @@ import streamlit as st
 import fitz  # PyMuPDF
 from PIL import Image
 import io
+import pytesseract
+import pandas as pd
+from PIL import Image, ImageEnhance
+import streamlit as st
 
 st.set_page_config(page_title="Conciliação OCR", layout="wide")
 
@@ -55,9 +59,45 @@ if menu == "📥 Upload de Arquivos":
     else:
         st.info("📂 Faça upload de um arquivo para visualizar.")
 
-elif menu == "🧾 OCR e Extração de Dados":
+if menu == "🧾 OCR e Extração de Dados":
     st.title("🧾 OCR e Extração de Dados")
-    # A lógica de OCR será implementada aqui
+
+    if 'imagens' not in st.session_state:
+        st.warning("⚠️ Nenhuma imagem carregada. Volte à aba anterior e faça o upload de um arquivo.")
+    else:
+        imagens = st.session_state['imagens']
+        textos_ocr = []
+        dados_linhas = []
+
+        for idx, imagem in enumerate(imagens):
+            st.markdown(f"### Página {idx+1}")
+            st.image(imagem, use_column_width=True)
+
+            # Pré-processamento simples
+            imagem_cinza = imagem.convert("L")  # escala de cinza
+            imagem_contraste = ImageEnhance.Contrast(imagem_cinza).enhance(2)
+
+            # OCR com pytesseract
+            texto = pytesseract.image_to_string(imagem_contraste, lang="por")
+            textos_ocr.append(texto)
+
+            # Exibição para debug
+            with st.expander(f"📄 Texto OCR da Página {idx+1}"):
+                st.text(texto)
+
+            # Separação básica por linhas com heurística: manter linhas com números
+            for linha in texto.split("\n"):
+                if any(char.isdigit() for char in linha) and len(linha.strip()) > 10:
+                    dados_linhas.append(linha.strip())
+
+        # Exibir linhas brutas detectadas
+        if dados_linhas:
+            df_raw = pd.DataFrame(dados_linhas, columns=["linha_ocr"])
+            st.session_state['df_raw_ocr'] = df_raw
+            st.success(f"✅ {len(dados_linhas)} linhas detectadas contendo dados.")
+            st.dataframe(df_raw)
+        else:
+            st.warning("⚠️ Nenhuma linha com dados foi detectada.")
 
 elif menu == "🤖 Fallback com GPT-4o":
     st.title("🤖 Fallback com GPT-4o")
