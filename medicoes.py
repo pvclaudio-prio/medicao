@@ -11,6 +11,7 @@ import time
 import fitz 
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
+st.write(st.secrets["openai"])
 
 #--------------------------------------
 #FUNÇÕES
