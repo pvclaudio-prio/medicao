@@ -107,50 +107,42 @@ if menu == "📥 Upload PDF":
     pdf_file = st.file_uploader("Selecione o PDF do Boletim", type="pdf")
 
     if pdf_file:
-        # Armazenamento para uso posterior
         st.session_state['pdf_file'] = pdf_file
 
-        # Extração do texto
         texto_pdf = ""
         try:
             doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
             texto_pdf = "\n".join([page.get_text() for page in doc])
+            st.session_state['pdf_text'] = texto_pdf
+            st.session_state['pdf_layout'] = classificar_layout(texto_pdf[:1000])
         except Exception as e:
             st.error(f"Erro ao ler o PDF: {e}")
 
-        # Exibição parcial
         st.subheader("📄 Pré-visualização do conteúdo extraído")
         st.text_area("Texto extraído das primeiras páginas:", texto_pdf[:2000], height=300)
-
-        # Classificação automática
-        tipo = classificar_layout(texto_pdf[:1000])
-        st.success(f"📌 Tipo de layout detectado: **{tipo}**")
+        st.success(f"📌 Tipo de layout detectado: **{st.session_state['pdf_layout']}**")
 
 if menu == "🔍 Análise e Parsing":
     st.title("🔍 Parsing Estruturado do Boletim")
-    if 'pdf_file' in st.session_state:
-        doc = fitz.open(stream=st.session_state['pdf_file'].read(), filetype="pdf")
-        todas_linhas = []
-        for page in doc:
-            texto = page.get_text()
-            layout = classificar_layout(texto)
-            if layout == "tabular_simples":
-                df = parse_tabular_simples(texto)
-                if not df.empty:
-                    todas_linhas.append(df)
-        if todas_linhas:
-            df_final = pd.concat(todas_linhas, ignore_index=True)
-            st.dataframe(df_final)
+    if 'pdf_text' in st.session_state and 'pdf_layout' in st.session_state:
+        texto = st.session_state['pdf_text']
+        layout = st.session_state['pdf_layout']
+        if layout == "tabular_simples":
+            df = parse_tabular_simples(texto)
+            if not df.empty:
+                st.success(f"✅ {len(df)} registros extraídos com sucesso.")
+                st.dataframe(df)
+            else:
+                st.warning("⚠️ Nenhuma linha foi extraída pelo parser tabular simples.")
         else:
-            st.warning("Nenhuma tabela estruturada encontrada. Tente o modo GPT ou OCR.")
+            st.warning("⚠️ Tipo de layout diferente de 'tabular_simples'. Use o fallback com GPT-4o ou OCR.")
     else:
-        st.info("Envie um PDF na aba de Upload.")
+        st.info("📥 Faça o upload de um PDF na aba anterior.")
 
 if menu == "🤖 GPT Fallback":
     st.title("🤖 GPT-4o para Parsing de Texto Ruim")
-    if 'pdf_file' in st.session_state:
-        doc = fitz.open(stream=st.session_state['pdf_file'].read(), filetype="pdf")
-        texto = "\n".join([p.get_text() for p in doc])
+    if 'pdf_text' in st.session_state:
+        texto = st.session_state['pdf_text']
         linhas = [l for l in texto.split("\n") if " X " in l and " - " in l]
         with st.spinner("Analisando com IA..."):
             df = extrair_linhas_com_gpt(linhas)
