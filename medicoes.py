@@ -5,78 +5,107 @@ import os
 import re
 import pandas as pd
 from datetime import datetime
+from openai import OpenAI
+import json
+import time
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
 #--------------------------------------
 #FUNÇÕES
 #---------------------------------------
+def extrair_texto_pdf(pdf_file):
+    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
+        texto = "\n".join([page.get_text() for page in doc])
+    return texto
+
 def extrair_linhas_boletim_flexivel(texto):
-
     linhas = texto.split("\n")
-    registros = []
-
-    def limpar_num(valor):
-        valor = re.sub(r"[^\d,]", "", valor)  # remove tudo exceto números e vírgula
-        valor = valor.replace(",", ".")
-        return float(valor) if valor else 0.0
-
-    def extrair_datas(bloco):
-        try:
-            periodo_match = re.search(r"(\d{2}/\d{2})\s*-\s*(\d{2}/\d{2})", bloco)
-            if periodo_match:
-                data_ini, data_fim = periodo_match.groups()
-                data_ini = datetime.strptime(f"{data_ini}/2024", "%d/%m/%Y").date()
-                data_fim = datetime.strptime(f"{data_fim}/2024", "%d/%m/%Y").date()
-                return data_ini, data_fim
-        except:
-            return None, None
-        return None, None
-
-    linhas_com_match = 0
+    colunas_esperadas = ["função", "nome", "período", "quantidade", "valor_unitario", "valor_total"]
+    dados = []
     for linha in linhas:
-        linha = re.sub(r"R\$ ?", "", linha)
-        linha = re.sub(r"(\d)\s+(\d)", r"\1\2", linha)  # junta dígitos quebrados por espaço
-        linha = linha.strip()
-
-        # Processa somente linhas com " X " e " - "
-        if " X " in linha and "-" in linha and "/" in linha:
+        if " X " in linha and " - " in linha:
+            partes = linha.split(" X ")
+            if len(partes) < 2:
+                continue
+            parte1, parte2 = partes
+            tokens = parte2.split()
+            if len(tokens) < 4:
+                continue
+            nome = parte1.strip().split(maxsplit=1)[-1].strip()
+            periodo = tokens[0] + " - " + tokens[2] if "-" in tokens[1] else tokens[0]
+            quantidade = tokens[-3].replace(".", "").replace(",", ".")
+            valor_unitario = tokens[-2].replace(".", "").replace(",", ".")
+            valor_total = tokens[-1].replace(".", "").replace(",", ".")
+            funcao_tokens = parte1.strip().split()[1:-1]
+            funcao = " ".join(funcao_tokens)
             try:
-                partes = linha.split(" X ")
-                pre_x = partes[0].strip()
-                pos_x = partes[1].strip()
+                dados.append({
+                    "função": funcao,
+                    "nome": nome,
+                    "período": periodo,
+                    "quantidade": float(quantidade),
+                    "valor_unitario": float(valor_unitario),
+                    "valor_total": float(valor_total)
+                })
+            except:
+                continue
+    return pd.DataFrame(dados)
 
-                # extrai nome e função da parte antes do X
-                tokens_pre = pre_x.split()
-                nome = " ".join(tokens_pre[1:])  # ignora o número do item
-                funcao = " ".join(tokens_pre[1:-3]) if len(tokens_pre) > 4 else nome
+def extrair_linhas_com_gpt(linhas_ruins):
+    client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+    resultados = []
 
-                # extrai período
-                data_ini, data_fim = extrair_datas(pos_x)
+    prompt_base = """
+Você é um especialista em boletins de medição. Dado um conjunto de linhas desformatadas, extraia os dados com os campos:
 
-                # tenta extrair os 3 últimos números: quantidade, unitário, total
-                numeros = re.findall(r"[\d\.]*\d,\d{2}", pos_x)
-                if len(numeros) >= 3:
-                    qtd, unit, total = numeros[-3:]
-                    registros.append({
-                        "função": funcao.strip(),
-                        "nome": nome.strip(),
-                        "quantidade": int(float(limpar_num(qtd))),
-                        "valor_unitário": limpar_num(unit),
-                        "valor_total": limpar_num(total),
-                        "período_inicio": data_ini,
-                        "período_fim": data_fim,
-                        "tipo_linha": "normal"
-                    })
-                    linhas_com_match += 1
-                else:
-                    st.text(f"❌ Falha: valores ausentes — {linha}")
-            except Exception as e:
-                st.text(f"❌ Erro: {e} — linha: {linha}")
+- função
+- nome
+- período_inicio (formato YYYY-MM-DD)
+- período_fim (formato YYYY-MM-DD)
+- quantidade (número)
+- valor_unitario (float)
+- valor_total (float)
 
-    st.success(f"✅ {linhas_com_match} linhas capturadas com sucesso.")
-    return pd.DataFrame(registros)
+Exemplo de entrada:
+1 Montador de Andaime Wesley dos Santos X 17/09 - 01/10 145 93,75 8.312,50
 
+Saída:
+[
+  {
+    "função": "Montador de Andaime",
+    "nome": "Wesley dos Santos",
+    "período_inicio": "2024-09-17",
+    "período_fim": "2024-10-01",
+    "quantidade": 145,
+    "valor_unitario": 93.75,
+    "valor_total": 8312.50
+  }
+]
+
+Agora processe as seguintes linhas:
+"""
+    batch_size = 5
+    for i in range(0, len(linhas_ruins), batch_size):
+        lote = linhas_ruins[i:i + batch_size]
+        conteudo = prompt_base + "\n".join(lote)
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "Você é um assistente que interpreta boletins de medição."},
+                    {"role": "user", "content": conteudo}
+                ],
+                temperature=0,
+                max_tokens=1500
+            )
+            resposta = response.choices[0].message.content.strip()
+            dados_json = json.loads(resposta)
+            resultados.extend(dados_json)
+        except Exception as e:
+            st.error(f"Erro no lote {i}-{i+batch_size}: {e}")
+        time.sleep(1)
+    return pd.DataFrame(resultados)
 #---------------------------------------
 #MENU
 #---------------------------------------
@@ -93,52 +122,52 @@ menu = st.sidebar.radio("Navegar para:", [
 #UPLOAD DE ARQUIVOS
 #---------------------------------------
 
-if menu == "📤 Upload de Arquivos":
-    st.title("📤 Upload de Arquivos Separados")
+if menu == "📤 Upload de Documentos":
+    st.title("📤 Upload de Documentos de Medição e Contrato")
 
-    st.subheader("📑 Contratos")
-    contratos_files = st.file_uploader(
-        "Envie aqui os arquivos de contrato (ex: começam com 46)",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key="contratos"
-    )
+    col1, col2 = st.columns(2)
+    with col1:
+        pdf_medicao = st.file_uploader("📄 Enviar Boletim de Medição (PDF)", type="pdf", key="medicao")
+    with col2:
+        pdf_contrato = st.file_uploader("📄 Enviar Tabela de Contrato (PDF)", type="pdf", key="contrato")
 
-    st.subheader("📋 Boletins de Medição")
-    medicoes_files = st.file_uploader(
-        "Envie aqui os arquivos de boletins (MED, BMS, Invoice...)",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key="medicoes"
-    )
+    usar_gpt = st.checkbox("🧠 Usar GPT-4o para extrair linhas com IA", value=True)
 
-    if contratos_files:
-        st.success(f"🗂️ {len(contratos_files)} contrato(s) carregado(s)")
-        for file in contratos_files:
-            st.markdown(f"**📄 {file.name}**")
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(file.read())
-                tmp_path = tmp.name
-            with pdfplumber.open(tmp_path) as pdf:
-                texto_contrato = "\n".join([page.extract_text() or "" for page in pdf.pages])
-            st.text_area("📝 Conteúdo do contrato (preview)", texto_contrato[:1500], height=200)
-            os.unlink(tmp_path)
+    if pdf_medicao:
+        texto_medicao = extrair_texto_pdf(pdf_medicao)
+        df_medicao_tradicional = extrair_linhas_boletim_flexivel(texto_medicao)
 
-    if medicoes_files:
-        st.success(f"🗂️ {len(medicoes_files)} boletim(ns) carregado(s)")
-        for file in medicoes_files:
-            st.markdown(f"**📄 {file.name}**")
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(file.read())
-                tmp_path = tmp.name
+        linhas_ruins = [linha for linha in texto_medicao.split('\n') if " X " in linha and " - " in linha]
 
-            with pdfplumber.open(tmp_path) as pdf:
-                texto_medicao = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        if df_medicao_tradicional.empty or usar_gpt:
+            with st.spinner("🧠 Extraindo informações com inteligência artificial..."):
+                df_medicao = extrair_linhas_com_gpt(linhas_ruins)
+                erros = len(linhas_ruins) - len(df_medicao)
+                st.success(f"✅ Medição processada com sucesso — {len(df_medicao)} linhas extraídas. ❌ {erros} falhas não interpretadas.")
+                st.dataframe(df_medicao)
+        else:
+            st.success(f"✅ Medição extraída com sucesso — {len(df_medicao_tradicional)} linhas.")
+            st.dataframe(df_medicao_tradicional)
 
-            st.text_area("📝 Conteúdo da medição (preview)", texto_medicao[:1500], height=200)
+    if pdf_contrato:
+        st.info("📎 O parser para contratos será implementado em etapa futura.")
 
-            df_medicao = extrair_linhas_boletim_flexivel(texto_medicao)
-            st.markdown("### 📊 Tabela Estruturada")
-            st.dataframe(df_medicao)
+elif menu == "🏠 Dashboard":
+    st.title("🏠 Dashboard de Conciliação")
+    st.info("Em construção.")
 
-            os.unlink(tmp_path)
+elif menu == "🔍 Conciliação de Valores":
+    st.title("🔍 Conciliação de Valores entre Medição e Contrato")
+    st.info("Em construção.")
+
+elif menu == "📑 Verificar Duplicidade":
+    st.title("📑 Verificação de Duplicidade de Funcionários")
+    st.info("Em construção.")
+
+elif menu == "🤖 Análise com IA":
+    st.title("🤖 Análise de Riscos com IA")
+    st.info("Em construção.")
+
+elif menu == "📊 Relatório Final":
+    st.title("📊 Relatório Final de Red Flags")
+    st.info("Em construção.")
