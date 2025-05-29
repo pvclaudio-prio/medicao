@@ -107,20 +107,29 @@ if menu == "📥 Upload PDF":
     pdf_file = st.file_uploader("Selecione o PDF do Boletim", type="pdf")
 
     if pdf_file:
-        st.session_state['pdf_file'] = pdf_file
+        # Armazenar bytes em session_state uma única vez
+        if 'pdf_bytes' not in st.session_state or st.session_state.get('pdf_filename') != pdf_file.name:
+            st.session_state['pdf_bytes'] = pdf_file.getvalue()
+            st.session_state['pdf_filename'] = pdf_file.name
 
-        texto_pdf = ""
-        try:
-            doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-            texto_pdf = "\n".join([page.get_text() for page in doc])
-            st.session_state['pdf_text'] = texto_pdf
-            st.session_state['pdf_layout'] = classificar_layout(texto_pdf[:1000])
-        except Exception as e:
-            st.error(f"Erro ao ler o PDF: {e}")
+            # Leitura do conteúdo e classificação
+            try:
+                doc = fitz.open(stream=st.session_state['pdf_bytes'], filetype="pdf")
+                texto_pdf = "\n".join([page.get_text() for page in doc])
+                st.session_state['pdf_text'] = texto_pdf
+                st.session_state['pdf_layout'] = classificar_layout(texto_pdf[:1000])
+            except Exception as e:
+                st.error(f"Erro ao processar o PDF: {e}")
+        else:
+            texto_pdf = st.session_state['pdf_text']
 
+        # Exibição parcial
         st.subheader("📄 Pré-visualização do conteúdo extraído")
         st.text_area("Texto extraído das primeiras páginas:", texto_pdf[:2000], height=300)
         st.success(f"📌 Tipo de layout detectado: **{st.session_state['pdf_layout']}**")
+
+    else:
+        st.info("📂 Faça upload de um PDF para continuar.")
 
 if menu == "🔍 Análise e Parsing":
     st.title("🔍 Parsing Estruturado do Boletim")
