@@ -134,7 +134,7 @@ if menu == "📤 Upload de Documentos":
 
     usar_gpt = st.checkbox("🧠 Usar GPT-4o para extrair linhas com IA", value=True)
 
-    if pdf_medicao:
+    if pdf_medicao is not None:
         texto_medicao = extrair_texto_pdf(pdf_medicao)
         df_medicao_tradicional = extrair_linhas_boletim_flexivel(texto_medicao)
 
@@ -149,6 +149,9 @@ if menu == "📤 Upload de Documentos":
         else:
             st.success(f"✅ Medição extraída com sucesso — {len(df_medicao_tradicional)} linhas.")
             st.dataframe(df_medicao_tradicional)
+
+    else:
+        st.warning("📄 Por favor, faça upload de um boletim de medição para continuar.")
 
     if pdf_contrato:
         st.info("📎 O parser para contratos será implementado em etapa futura.")
