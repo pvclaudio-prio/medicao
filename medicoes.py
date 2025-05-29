@@ -51,11 +51,7 @@ if menu == "📥 Upload de Arquivos":
         st.session_state['imagens'] = imagens
 
         st.success(f"✅ {len(imagens)} página(s) processada(s) com sucesso!")
-
-        # Exibe as imagens renderizadas
-        for i, img in enumerate(imagens):
-            st.markdown(f"**Página {i+1}**")
-            st.image(img, use_column_width=True)
+        
     else:
         st.info("📂 Faça upload de um arquivo para visualizar.")
 
