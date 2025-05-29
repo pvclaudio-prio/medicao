@@ -8,9 +8,9 @@ from datetime import datetime
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
----------------------------------------
+"""--------------------------------------
 FUNÇÕES
----------------------------------------
+---------------------------------------"""
 def extrair_linhas_boletim(texto):
     linhas = texto.split("\n")
     registros = []
@@ -50,9 +50,9 @@ def extrair_linhas_boletim(texto):
             })
     return pd.DataFrame(registros)
 
----------------------------------------
+"""---------------------------------------
 MENU
----------------------------------------
+---------------------------------------"""
 
 menu = st.sidebar.radio("Navegar para:", [
     "📤 Upload de Arquivos",
@@ -62,9 +62,9 @@ menu = st.sidebar.radio("Navegar para:", [
     "📄 Relatório Final"
 ])
 
----------------------------------------
+"""---------------------------------------
 UPLOAD DE ARQUIVOS
----------------------------------------
+---------------------------------------"""
 
 if menu == "📤 Upload de Arquivos":
     st.title("📤 Upload de Arquivos Separados")
