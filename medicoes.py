@@ -15,7 +15,7 @@ st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 #FUNÇÕES
 #---------------------------------------
 def extrair_texto_pdf(pdf_file):
-    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
+    with fitz.open(stream=pdf_file.getvalue(), filetype="pdf") as doc:
         texto = "\n".join([page.get_text() for page in doc])
     return texto
 
