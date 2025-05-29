@@ -11,7 +11,7 @@ st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 #--------------------------------------
 #FUNÇÕES
 #---------------------------------------
-def extrair_linhas_boletim_debug(texto):
+def extrair_linhas_boletim_robusto(texto):
     import re
     import pandas as pd
     from datetime import datetime
@@ -19,57 +19,55 @@ def extrair_linhas_boletim_debug(texto):
     linhas = texto.split("\n")
     registros = []
 
-    # Regex atual (padrão esperado)
+    def limpar_valor(v):
+        # Remove R$, pontos decimais quebrados e transforma em float
+        v = re.sub(r"[^\d,]", "", v)           # remove tudo exceto dígito e vírgula
+        v = v.replace(",", ".")
+        return float(v) if v else 0.0
+
     regex_linha = re.compile(
-        r"(?P<funcao>.+?)\s+(?P<nome>[\w\s\.]+?)\s+X\s+(?P<qtd>\d+)\s+R\$ ?(?P<valor_unit>[\d\.,]+)\s+R\$ ?(?P<valor_total>[\d\.,]+)"
+        r"""(?P<funcao>.+?)\s+
+            (?P<nome>.+?)\s+X\s+
+            (?P<periodo>\d{2}/\d{2}\s*-\s*\d{2}/\d{2})\s+
+            (?P<qtd>\d+)\s+
+            (?P<valor_unit>[\d\s\.,]+)\s+
+            (?P<valor_total>[\d\s\.,]+)
+        """,
+        re.VERBOSE
     )
 
-    regex_periodo = re.compile(r"(\d{2}/\d{2})\s*-\s*(\d{2}/\d{2})")
-
-    periodo_padrao = None
-    total_linhas = 0
     linhas_com_match = 0
-    linhas_sem_match = []
-
     for linha in linhas:
-        total_linhas += 1
-        st.code(linha, language="text")
-
+        linha = re.sub(r"R\$ ?", "", linha)                 # remove R$
+        linha = re.sub(r"(\d)\s+(\d)", r"\1\2", linha)       # junta dígitos quebrados por espaço
         match = regex_linha.search(linha)
         if match:
-            linhas_com_match += 1
-            periodo = regex_periodo.search(linha)
-            if periodo:
-                data_ini, data_fim = periodo.groups()
-                ano_ref = "2024"
-                data_inicio = datetime.strptime(f"{data_ini}/{ano_ref}", "%d/%m/%Y").date()
-                data_fim = datetime.strptime(f"{data_fim}/{ano_ref}", "%d/%m/%Y").date()
-                periodo_padrao = (data_inicio, data_fim)
-            elif periodo_padrao:
-                data_inicio, data_fim = periodo_padrao
-            else:
-                data_inicio = data_fim = None
+            data_inicio, data_fim = None, None
+            try:
+                periodo = match.group("periodo")
+                ini, fim = periodo.split("-")
+                data_inicio = datetime.strptime(ini.strip() + "/2024", "%d/%m/%Y").date()
+                data_fim = datetime.strptime(fim.strip() + "/2024", "%d/%m/%Y").date()
+            except:
+                pass
 
             registros.append({
                 "função": match.group("funcao").strip(),
                 "nome": match.group("nome").strip(),
                 "quantidade": int(match.group("qtd")),
-                "valor_unitário": float(match.group("valor_unit").replace(".", "").replace(",", ".")),
-                "valor_total": float(match.group("valor_total").replace(".", "").replace(",", ".")),
+                "valor_unitário": limpar_valor(match.group("valor_unit")),
+                "valor_total": limpar_valor(match.group("valor_total")),
                 "período_inicio": data_inicio,
                 "período_fim": data_fim,
                 "tipo_linha": "normal"
             })
+            linhas_com_match += 1
         else:
-            linhas_sem_match.append(linha)
-
-    st.markdown(f"✅ **{linhas_com_match} de {total_linhas} linhas** capturadas com sucesso.")
-    if linhas_sem_match:
-        st.markdown("⚠️ **Linhas sem correspondência com o padrão:**")
-        for linha in linhas_sem_match:
             st.text(f"❌ {linha}")
 
+    st.success(f"✅ {linhas_com_match} linhas capturadas com sucesso.")
     return pd.DataFrame(registros)
+
 
 #---------------------------------------
 #MENU
@@ -131,7 +129,7 @@ if menu == "📤 Upload de Arquivos":
 
             st.text_area("📝 Conteúdo da medição (preview)", texto_medicao[:1500], height=200)
 
-            df_medicao = extrair_linhas_boletim_debug(texto_medicao)
+            df_medicao = extrair_linhas_boletim_robusto(texto_medicao)
             st.markdown("### 📊 Tabela Estruturada")
             st.dataframe(df_medicao)
 
