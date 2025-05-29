@@ -103,10 +103,28 @@ menu = st.sidebar.radio("Navegação", ["📥 Upload PDF", "🔍 Análise e Pars
 
 if menu == "📥 Upload PDF":
     st.title("📥 Upload de PDF de Medição")
+
     pdf_file = st.file_uploader("Selecione o PDF do Boletim", type="pdf")
+
     if pdf_file:
+        # Armazenamento para uso posterior
         st.session_state['pdf_file'] = pdf_file
-        st.success("PDF carregado com sucesso.")
+
+        # Extração do texto
+        texto_pdf = ""
+        try:
+            doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+            texto_pdf = "\n".join([page.get_text() for page in doc])
+        except Exception as e:
+            st.error(f"Erro ao ler o PDF: {e}")
+
+        # Exibição parcial
+        st.subheader("📄 Pré-visualização do conteúdo extraído")
+        st.text_area("Texto extraído das primeiras páginas:", texto_pdf[:2000], height=300)
+
+        # Classificação automática
+        tipo = classificar_layout(texto_pdf[:1000])
+        st.success(f"📌 Tipo de layout detectado: **{tipo}**")
 
 if menu == "🔍 Análise e Parsing":
     st.title("🔍 Parsing Estruturado do Boletim")
