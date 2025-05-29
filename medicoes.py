@@ -8,6 +8,7 @@ from datetime import datetime
 from openai import OpenAI
 import json
 import time
+import fitz 
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
@@ -135,23 +136,33 @@ if menu == "📤 Upload de Documentos":
     usar_gpt = st.checkbox("🧠 Usar GPT-4o para extrair linhas com IA", value=True)
 
     if pdf_medicao is not None:
+    st.write("📄 Arquivo de medição recebido:", pdf_medicao.name, type(pdf_medicao))
+
+    try:
         texto_medicao = extrair_texto_pdf(pdf_medicao)
+
         df_medicao_tradicional = extrair_linhas_boletim_flexivel(texto_medicao)
 
-        linhas_ruins = [linha for linha in texto_medicao.split('\n') if " X " in linha and " - " in linha]
-
         if df_medicao_tradicional.empty or usar_gpt:
-            with st.spinner("🧠 Extraindo informações com inteligência artificial..."):
-                df_medicao = extrair_linhas_com_gpt(linhas_ruins)
-                erros = len(linhas_ruins) - len(df_medicao)
-                st.success(f"✅ Medição processada com sucesso — {len(df_medicao)} linhas extraídas. ❌ {erros} falhas não interpretadas.")
+            linhas_brutas = [linha for linha in texto_medicao.split('\n') if " X " in linha and " - " in linha]
+            with st.spinner("🧠 Extraindo com GPT-4o..."):
+                df_medicao = extrair_linhas_com_gpt(linhas_brutas)
+
+            if not df_medicao.empty:
+                erros = len(linhas_brutas) - len(df_medicao)
+                st.success(f"✅ Medição extraída com IA — {len(df_medicao)} linhas. ❌ {erros} falhas.")
                 st.dataframe(df_medicao)
+            else:
+                st.error("❌ GPT-4o não conseguiu interpretar as linhas.")
         else:
             st.success(f"✅ Medição extraída com sucesso — {len(df_medicao_tradicional)} linhas.")
             st.dataframe(df_medicao_tradicional)
 
-    else:
-        st.warning("📄 Por favor, faça upload de um boletim de medição para continuar.")
+    except Exception as e:
+        st.error(f"❌ Erro ao processar o PDF: {e}")
+
+else:
+    st.info("⏳ Aguardando upload do Boletim de Medição.")
 
     if pdf_contrato:
         st.info("📎 O parser para contratos será implementado em etapa futura.")
