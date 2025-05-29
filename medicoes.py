@@ -133,20 +133,27 @@ if menu == "📥 Upload PDF":
 
 if menu == "🔍 Análise e Parsing":
     st.title("🔍 Parsing Estruturado do Boletim")
+
     if 'pdf_text' in st.session_state and 'pdf_layout' in st.session_state:
         texto = st.session_state['pdf_text']
         layout = st.session_state['pdf_layout']
+
+        st.markdown(f"🔎 **Layout detectado:** `{layout}`")
+
         if layout == "tabular_simples":
             df = parse_tabular_simples(texto)
             if not df.empty:
                 st.success(f"✅ {len(df)} registros extraídos com sucesso.")
                 st.dataframe(df)
+                st.session_state['df_parsed'] = df
             else:
                 st.warning("⚠️ Nenhuma linha foi extraída pelo parser tabular simples.")
+
         else:
-            st.warning("⚠️ Tipo de layout diferente de 'tabular_simples'. Use o fallback com GPT-4o ou OCR.")
+            st.warning("⚠️ Layout diferente de 'tabular_simples'. Utilize a aba 🤖 GPT Fallback ou 🧾 OCR.")
+
     else:
-        st.info("📥 Faça o upload de um PDF na aba anterior.")
+        st.info("📥 Faça upload de um PDF na aba anterior.")
 
 if menu == "🤖 GPT Fallback":
     st.title("🤖 GPT-4o para Parsing de Texto Ruim")
