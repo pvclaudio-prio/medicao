@@ -7,6 +7,8 @@ st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
+st.write(st.secrets["google"]["credentials_json"])
+
 def processar_documento_documentai(file, processor_id, tipo="boletim"):
     # Carrega configurações
     project_id = st.secrets["google"]["project_id"]
