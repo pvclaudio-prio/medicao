@@ -15,7 +15,9 @@ def processar_documento_documentai(file, processor_id, tipo="boletim"):
     location = st.secrets["google"]["location"]
 
     # Corrige quebra de linha do private_key
-    creds = service_account.Credentials.from_service_account_info(st.secrets["google"]["credentials_json"])
+    raw_json = st.secrets["google"]["credentials_json"].replace("\\n", "\n")
+    creds_info = json.loads(raw_json)
+    creds = service_account.Credentials.from_service_account_info(creds_info)
 
     # Cliente e processamento
     client = documentai.DocumentProcessorServiceClient(credentials=creds)
