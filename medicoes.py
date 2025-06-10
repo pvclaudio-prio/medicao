@@ -6,7 +6,7 @@ import google.generativeai as genai
 
 st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
-st.logo("logo-alura.png")
+st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-2.5-pro")
