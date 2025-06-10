@@ -43,7 +43,9 @@ def processar_documento_documentai(file, processor_id):
     for page in doc.pages:
         for table in page.tables:
             linhas = []
-            for row in table.header_rows + table.body_rows:
+            header = table.header_rows or []
+            body = table.body_rows or []
+            for row in header + body:
                 linha = []
                 for cell in row.cells:
                     segmentos = cell.layout.text_anchor.text_segments
