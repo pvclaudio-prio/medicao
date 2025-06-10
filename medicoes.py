@@ -1,6 +1,7 @@
 from google.cloud import documentai_v1 as documentai
 from google.oauth2 import service_account
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
@@ -74,4 +75,19 @@ else:
 arquivo = st.file_uploader("Envie o contrato ou boletim PDF", type=["pdf"])
 if arquivo:
     tabelas = processar_documento_documentai(arquivo, processor_id)
-    st.write(tabelas)
+    if tabelas and len(tabelas[0]) > 1:
+        colunas = tabelas[0][0]
+        dados = tabelas[0][1:]
+    
+        df = pd.DataFrame(dados, columns=colunas)
+        st.dataframe(df)
+    
+        # Botão para exportar para Excel
+        st.download_button(
+            "📥 Baixar Excel",
+            df.to_csv(index=False).encode("utf-8"),
+            file_name="tabela_medicao.csv",
+            mime="text/csv"
+        )
+    else:
+        st.warning("Nenhuma tabela encontrada.")
