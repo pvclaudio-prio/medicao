@@ -9,6 +9,12 @@ st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
 st.write("🧪 Chave antes do replace:", repr(st.secrets["google"]["private_key"]))
 
+try:
+    result = client.process_document(request=request)
+except Exception as e:
+    st.error(f"Erro ao processar documento: {e}")
+    st.stop()
+
 def gerar_credenciais():
     private_key = st.secrets["google"]["private_key"].replace("\\n", "\n")
 
