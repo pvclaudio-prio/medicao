@@ -10,3 +10,7 @@ markdown==3.6
 tqdm==4.66.4
 Pillow==10.3.0
 google-generativeai==0.4.1
+google-cloud-documentai==2.25.0
+google-auth==2.29.0
+google-auth-oauthlib==1.2.0
+google-generativeai==0.4.1
