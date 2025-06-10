@@ -1,104 +1,121 @@
+import os
+import time
+import pdfplumber
 import streamlit as st
-import streamlit as st
-import fitz  # PyMuPDF
-from PIL import Image
-import io
-import pytesseract
-import pandas as pd
-from PIL import Image, ImageEnhance
-import streamlit as st
+import google.generativeai as genai
 
-st.set_page_config(page_title="Conciliação OCR", layout="wide")
+st.set_page_config(layout='wide')
+st.title('Análise dos Boletins de Medição 🕵️‍')
+st.logo("logo-alura.png")
 
-# Menu lateral
-menu = st.sidebar.radio("Navegar para:", [
-    "📥 Upload de Arquivos",
-    "🧾 OCR e Extração de Dados",
-    "🤖 Fallback com GPT-4o",
-    "📊 Visualização e Exportação"
-])
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+model = genai.GenerativeModel("gemini-2.5-pro")
 
-# Execução de cada página
-if menu == "📥 Upload de Arquivos":
-    st.title("📥 Upload de Arquivos")
+def agente_validador(tabela_medicao, precos_contrato):
+    prompt = f"""
+Você é um gerente financeiro especializado em auditorias de contratos.
 
-    uploaded_file = st.file_uploader("Selecione um PDF ou imagem (JPG, PNG)", type=["pdf", "png", "jpg", "jpeg"])
+# Objetivo
+Analise os dados da medição extraídos de um PDF e compare com a base contratual fornecida. Aponte quaisquer divergências, como:
+- Valores unitários diferentes do contrato
+- Totais incorretos (quantidade x valor unitário)
+- Possíveis duplicidades ou superfaturamentos
 
-    if uploaded_file:
-        file_name = uploaded_file.name
-        file_bytes = uploaded_file.read()
+# Tabela de Preços Contratuais
+{precos_contrato}
 
-        st.session_state['file_name'] = file_name
-        st.session_state['file_ext'] = file_name.split(".")[-1].lower()
+# Tabela de Medição
+{tabela_medicao}
+"""
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Erro ao consultar o agente validador: {e}"
 
-        imagens = []
+def agente_revisor(resposta_validador, tabela_medicao, precos_contrato):
+    prompt = f"""
+Você é um revisor técnico em auditoria de contratos. Sua tarefa é revisar a análise abaixo feita por um outro agente. 
+Confira se a resposta está coerente com a tabela de medição e a base contratual fornecida. Corrija imprecisões, adicione detalhes se necessário 
+e assegure a clareza e precisão antes do envio ao usuário final.
 
-        # Processamento de PDF em imagens
-        if st.session_state['file_ext'] == "pdf":
-            doc = fitz.open(stream=file_bytes, filetype="pdf")
-            for i, page in enumerate(doc):
-                pix = page.get_pixmap(dpi=300)
-                img_bytes = pix.tobytes("png")
-                img = Image.open(io.BytesIO(img_bytes))
-                imagens.append(img)
+# Resposta do agente validador
+{resposta_validador}
 
-        # Upload direto de imagem
-        else:
-            img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
-            imagens.append(img)
+# Tabela de Medição
+{tabela_medicao}
 
-        # Armazena imagens renderizadas na sessão
-        st.session_state['imagens'] = imagens
+# Tabela de Preços Contratuais
+{precos_contrato}
+"""
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Erro ao consultar o agente revisor: {e}"
 
-        st.success(f"✅ {len(imagens)} página(s) processada(s) com sucesso!")
-        
-    else:
-        st.info("📂 Faça upload de um arquivo para visualizar.")
+def extrair_tabelas_pdf(caminho_pdf):
+    tabelas_extraidas = []
+    with pdfplumber.open(caminho_pdf) as pdf:
+        for i, pagina in enumerate(pdf.pages):
+            tabelas = pagina.extract_tables()
+            for tabela in tabelas:
+                texto_tabela = "\n".join([
+                    "\t".join([str(cell) if cell is not None else "" for cell in row])
+                    for row in tabela
+                ])
+                tabelas_extraidas.append({"pagina": i + 1, "conteudo": texto_tabela})
+    return tabelas_extraidas
 
-if menu == "🧾 OCR e Extração de Dados":
-    st.title("🧾 OCR e Extração de Dados")
+def extrair_precos_contrato(pdf_file):
+    precos = {}
+    with pdfplumber.open(pdf_file) as pdf:
+        for pagina in pdf.pages:
+            tabelas = pagina.extract_tables()
+            for tabela in tabelas:
+                for row in tabela:
+                    if row and len(row) >= 2:
+                        funcao = str(row[0]).strip().upper()
+                        try:
+                            valor = float(str(row[1]).replace("R$", "").replace(".", "").replace(",", "."))
+                            precos[funcao] = valor
+                        except:
+                            continue
+    return precos
 
-    if 'imagens' not in st.session_state:
-        st.warning("⚠️ Nenhuma imagem carregada. Volte à aba anterior e faça o upload de um arquivo.")
-    else:
-        imagens = st.session_state['imagens']
-        textos_ocr = []
-        dados_linhas = []
+arquivo = st.file_uploader("📥 Insira o arquivo de medição (PDF)", type=["pdf"])
+st.markdown("### 📄 Contratos do Fornecedor")
+num_contratos = st.number_input("Quantos contratos o fornecedor possui?", min_value=1, max_value=10, step=1)
+contratos = []
+for i in range(num_contratos):
+    contrato = st.file_uploader(f"Contrato {i+1}", type=["pdf"], key=f"contrato_{i}")
+    if contrato:
+        contratos.append(contrato)
 
-        for idx, imagem in enumerate(imagens):
-            st.markdown(f"### Página {idx+1}")
-            st.image(imagem, use_column_width=True)
+if arquivo and contratos and st.button("Realizar Análise da Medição"):
+    with st.spinner("⏳ Extraindo tabelas e realizando análise com os agentes Gemini..."):
+        tabelas = extrair_tabelas_pdf(arquivo)
+        respostas = []
 
-            # Pré-processamento simples
-            imagem_cinza = imagem.convert("L")  # escala de cinza
-            imagem_contraste = ImageEnhance.Contrast(imagem_cinza).enhance(2)
+        tabela_precos_global = {}
+        for contrato in contratos:
+            precos = extrair_precos_contrato(contrato)
+            tabela_precos_global.update(precos)
 
-            # OCR com pytesseract
-            texto = pytesseract.image_to_string(imagem_contraste, lang="por")
-            textos_ocr.append(texto)
+        precos_texto = "\n".join([f"{k}: R$ {v:.2f}" for k, v in tabela_precos_global.items()])
 
-            # Exibição para debug
-            with st.expander(f"📄 Texto OCR da Página {idx+1}"):
-                st.text(texto)
+        for tabela in tabelas:
+            raw = agente_validador(tabela["conteudo"], precos_texto)
+            resposta = agente_revisor(raw, tabela["conteudo"], precos_texto)
+            bloco = f"📄 **Página {tabela['pagina']}**\n\n{resposta}"
+            respostas.append(bloco)
 
-            # Separação básica por linhas com heurística: manter linhas com números
-            for linha in texto.split("\n"):
-                if any(char.isdigit() for char in linha) and len(linha.strip()) > 10:
-                    dados_linhas.append(linha.strip())
+        resultado_final = "\n\n---\n\n".join(respostas)
 
-        # Exibir linhas brutas detectadas
-        if dados_linhas:
-            df_raw = pd.DataFrame(dados_linhas, columns=["linha_ocr"])
-            st.session_state['df_raw_ocr'] = df_raw
-            st.success(f"✅ {len(dados_linhas)} linhas detectadas contendo dados.")
-            st.dataframe(df_raw)
-        else:
-            st.warning("⚠️ Nenhuma linha com dados foi detectada.")
+    def stream_data():
+        for word in resultado_final.split(" "):
+            yield word + " "
+            time.sleep(0.01)
 
-elif menu == "🤖 Fallback com GPT-4o":
-    st.title("🤖 Fallback com GPT-4o")
-    # GPT irá auxiliar no parsing quando o OCR for insuficiente
-
-elif menu == "📊 Visualização e Exportação":
-    st.title("📊 Visualização e Exportação")
-    # Exibição final com filtros + botão para CSV
+    st.markdown("### 🧠 Resultado da Análise")
+    st.write_stream(stream_data)
