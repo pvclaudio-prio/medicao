@@ -43,8 +43,8 @@ def processar_documento_documentai(file, processor_id):
     for page in doc.pages:
         for table in page.tables:
             linhas = []
-            header = table.header_rows or []
-            body = table.body_rows or []
+            header = list(table.header_rows) if table.header_rows else []
+            body = list(table.body_rows) if table.body_rows else []
             for row in header + body:
                 linha = []
                 for cell in row.cells:
