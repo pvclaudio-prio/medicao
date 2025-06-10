@@ -19,7 +19,6 @@ def processar_documento_documentai(file, processor_id, tipo="boletim"):
     creds_info = creds_raw  # já é dict se bem configurado
     if isinstance(creds_info, str):
         creds_info = json.loads(creds_info.replace("\\n", "\n"))
-    )
     creds = service_account.Credentials.from_service_account_info(creds_info)
 
     # Cliente e processamento
