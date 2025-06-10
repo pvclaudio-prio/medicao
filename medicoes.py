@@ -37,7 +37,12 @@ def processar_documento_documentai(file, processor_id):
     document = {"content": file.read(), "mime_type": "application/pdf"}
     request = {"name": name, "raw_document": document}
 
-    result = client.process_document(request=request)
+    try:
+        result = client.process_document(request=request)
+    except Exception as e:
+        st.error(f"❌ Erro ao processar documento:\n\n{e}")
+        st.stop()
+
     doc = result.document
 
     tabelas = []
