@@ -9,59 +9,49 @@ st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
 st.write(st.secrets["google"]["credentials_json"])
 
-def processar_documento_documentai(file, processor_id, tipo="boletim"):
-    # Carrega configurações
-    project_id = st.secrets["google"]["project_id"]
-    location = st.secrets["google"]["location"]
-
-    # Corrige quebra de linha do private_key
-    creds_raw = st.secrets["google"]["credentials_json"]
-
-    # Se for string (mal interpretado como texto), convertendo com loads()
-    if isinstance(creds_raw, str):
-        import json
-        creds_info = json.loads(creds_raw.replace("\\n", "\n"))
-    else:
-        creds_info = creds_raw  # já é dict, usa direto
-    
-    creds = service_account.Credentials.from_service_account_info(creds_info)
-
-    # Cliente e processamento
-    client = documentai.DocumentProcessorServiceClient(credentials=creds)
-    name = f"projects/{project_id}/locations/{location}/processors/{processor_id}"
-
-    document = {
-        "content": file.read(),
-        "mime_type": "application/pdf"
+def gerar_credenciais():
+    info = {
+        "type": st.secrets["google"]["type"],
+        "project_id": st.secrets["google"]["project_id"],
+        "private_key_id": st.secrets["google"]["private_key_id"],
+        "private_key": st.secrets["google"]["private_key"].replace("\\n", "\n"),
+        "client_email": st.secrets["google"]["client_email"],
+        "client_id": st.secrets["google"]["client_id"],
+        "auth_uri": st.secrets["google"]["auth_uri"],
+        "token_uri": st.secrets["google"]["token_uri"],
+        "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
+        "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"],
+        "universe_domain": st.secrets["google"]["universe_domain"],
     }
+    return service_account.Credentials.from_service_account_info(info)
 
-    request = {
-        "name": name,
-        "raw_document": document
-    }
+def processar_documento_documentai(file, processor_id):
+    credentials = gerar_credenciais()
+    client = documentai.DocumentProcessorServiceClient(credentials=credentials)
+
+    name = f"projects/{st.secrets['google']['project_id']}/locations/{st.secrets['google']['location']}/processors/{processor_id}"
+
+    document = {"content": file.read(), "mime_type": "application/pdf"}
+    request = {"name": name, "raw_document": document}
+
     result = client.process_document(request=request)
     doc = result.document
 
-    # Extrair tabelas OCR
-    tabelas_extraidas = []
+    tabelas = []
     for page in doc.pages:
         for table in page.tables:
             linhas = []
             for row in table.header_rows + table.body_rows:
-                celulas = []
+                linha = []
                 for cell in row.cells:
-                    segmentos = cell.layout.text_anchor.text_segments
-                    if segmentos:
-                        start = int(segmentos[0].start_index)
-                        end = int(segmentos[0].end_index)
+                    if cell.layout.text_anchor.text_segments:
+                        start = cell.layout.text_anchor.text_segments[0].start_index
+                        end = cell.layout.text_anchor.text_segments[0].end_index
                         texto = doc.text[start:end].strip()
-                        celulas.append(texto)
-                    else:
-                        celulas.append("")
-                linhas.append(celulas)
-            tabelas_extraidas.append(linhas)
-
-    return tabelas_extraidas
+                        linha.append(texto)
+                linhas.append(linha)
+            tabelas.append(linhas)
+    return tabelas
 
 # Upload do PDF e chamada da função
 arquivo = st.file_uploader("Envie o contrato ou boletim PDF", type=["pdf"])
