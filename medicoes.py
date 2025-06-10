@@ -8,7 +8,7 @@ st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+genai.configure(api_key=st.secrets["gemini"]["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-2.5-pro")
 
 def agente_validador(tabela_medicao, precos_contrato):
