@@ -7,28 +7,25 @@ st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
-def processar_documento_documentai(file, processor_id, tipo="boletim"):
-    # Carrega configurações do Streamlit Secrets
+ef processar_documento_documentai(file, processor_id, tipo="boletim"):
+    # Carrega configurações
     project_id = st.secrets["google"]["project_id"]
     location = st.secrets["google"]["location"]
 
-    # Carrega as credenciais do JSON embutido
-    creds_info = json.loads(st.secrets["google"]["credentials_json"])
+    # Corrige quebra de linha do private_key
+    raw_json = st.secrets["google"]["credentials_json"].replace("\\n", "\n")
+    creds_info = json.loads(raw_json)
     creds = service_account.Credentials.from_service_account_info(creds_info)
 
-    # Cria cliente autenticado
+    # Cliente e processamento
     client = documentai.DocumentProcessorServiceClient(credentials=creds)
-
-    # Monta o nome do processador
     name = f"projects/{project_id}/locations/{location}/processors/{processor_id}"
 
-    # Prepara o documento PDF enviado pelo usuário
     document = {
         "content": file.read(),
         "mime_type": "application/pdf"
     }
 
-    # Envia para o Document AI
     request = {
         "name": name,
         "raw_document": document
@@ -36,7 +33,7 @@ def processar_documento_documentai(file, processor_id, tipo="boletim"):
     result = client.process_document(request=request)
     doc = result.document
 
-    # Extrai tabelas OCR da resposta
+    # Extrair tabelas OCR
     tabelas_extraidas = []
     for page in doc.pages:
         for table in page.tables:
