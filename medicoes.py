@@ -61,9 +61,3 @@ arquivo = st.file_uploader("Envie o contrato ou boletim PDF", type=["pdf"])
 if arquivo:
     tabelas = processar_documento_documentai(arquivo, st.secrets["google"]["contract_processor"])
     st.write(tabelas)
-
-try:
-    result = client.process_document(request=request)
-except Exception as e:
-    st.error(f"Erro ao processar documento: {e}")
-    st.stop()
