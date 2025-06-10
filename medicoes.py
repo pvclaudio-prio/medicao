@@ -7,8 +7,6 @@ st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
-st.write(st.secrets["google"]["credentials_json"])
-
 def gerar_credenciais():
     info = {
         "type": st.secrets["google"]["type"],
