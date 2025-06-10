@@ -10,19 +10,22 @@ st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 st.write("🧪 Chave antes do replace:", repr(st.secrets["google"]["private_key"]))
 
 def gerar_credenciais():
+    private_key = st.secrets["google"]["private_key"].replace("\\n", "\n")
+
     info = {
         "type": st.secrets["google"]["type"],
         "project_id": st.secrets["google"]["project_id"],
         "private_key_id": st.secrets["google"]["private_key_id"],
-        "private_key": st.secrets["google"]["private_key"].replace("\\n", "\n"),
+        "private_key": private_key,
         "client_email": st.secrets["google"]["client_email"],
         "client_id": st.secrets["google"]["client_id"],
         "auth_uri": st.secrets["google"]["auth_uri"],
         "token_uri": st.secrets["google"]["token_uri"],
         "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
         "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"],
-        "universe_domain": st.secrets["google"]["universe_domain"],
+        "universe_domain": st.secrets["google"]["universe_domain"]
     }
+
     return service_account.Credentials.from_service_account_info(info)
 
 def processar_documento_documentai(file, processor_id):
