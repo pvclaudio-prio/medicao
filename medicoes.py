@@ -2,10 +2,13 @@ from google.cloud import documentai_v1 as documentai
 from google.oauth2 import service_account
 import streamlit as st
 import pandas as pd
+import openai
 
 st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
+
+openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 
 def gerar_credenciais():
     private_key = st.secrets["google"]["private_key"].replace("\\n", "\n")
@@ -62,32 +65,76 @@ def processar_documento_documentai(file, processor_id):
 
     return tabelas
 
-# Escolha do tipo de documento
-tipo = st.radio("Tipo de documento", ["Boletim de Medição", "Contrato"])
+def gerar_prompt_conciliacao_openai(df_boletim, df_contrato):
+    boletim_texto = df_boletim.to_string(index=False)
+    contrato_texto = df_contrato.to_string(index=False)
 
-# Seleção do processor
-if tipo == "Boletim de Medição":
-    processor_id = st.secrets["google"]["form_parser_id"]
+    prompt = f"""
+Você é um auditor financeiro especialista em contratos de prestação de serviço.
+
+Compare as duas tabelas abaixo e aponte inconsistências como:
+- Valor unitário diferente do contrato
+- Total incorreto (quantidade × valor unitário)
+- Cobranças não previstas no contrato
+- Possíveis duplicidades
+
+# Tabela contratual:
+{contrato_texto}
+
+# Boletim de medição:
+{boletim_texto}
+
+Retorne uma análise clara e objetiva com recomendações.
+"""
+
+    return prompt
+
+st.subheader("📤 Envio de Documentos")
+arquivo_boletim = st.file_uploader("📄 Envie o Boletim de Medição (PDF)", type=["pdf"], key="boletim")
+arquivo_contrato = st.file_uploader("📑 Envie o Contrato (PDF)", type=["pdf"], key="contrato")
+
+df_boletim = None
+df_contrato = None
+
+# ID do processor
+processor_id = st.secrets["google"]["form_parser_id"]
+
+if arquivo_boletim:
+    tabelas_boletim = processar_documento_documentai(arquivo_boletim, processor_id)
+    if tabelas_boletim and len(tabelas_boletim[0]) > 1:
+        colunas = tabelas_boletim[0][0]
+        linhas = tabelas_boletim[0][1:]
+        df_boletim = pd.DataFrame(linhas, columns=colunas)
+        st.subheader("📊 Boletim de Medição")
+        st.dataframe(df_boletim)
+
+if arquivo_contrato:
+    tabelas_contrato = processar_documento_documentai(arquivo_contrato, processor_id)
+    if tabelas_contrato and len(tabelas_contrato[0]) > 1:
+        colunas = tabelas_contrato[0][0]
+        linhas = tabelas_contrato[0][1:]
+        df_contrato = pd.DataFrame(linhas, columns=colunas)
+        st.subheader("📋 Tabela do Contrato")
+        st.dataframe(df_contrato)
+
+if df_boletim is not None and df_contrato is not None:
+    if st.button("🔍 Analisar Conciliação com GPT-4o"):
+        with st.spinner("Consultando GPT-4o..."):
+            prompt = gerar_prompt_conciliacao_openai(df_boletim, df_contrato)
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "Você é um auditor de contratos de serviços."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=1500,
+                )
+                resultado = response["choices"][0]["message"]["content"]
+                st.markdown("### 💬 Resultado da Conciliação")
+                st.markdown(resultado)
+            except Exception as e:
+                st.error(f"Erro ao consultar GPT-4o: {e}")
 else:
-    processor_id = st.secrets["google"]["contract_processor"]
-
-# Upload e chamada
-arquivo = st.file_uploader("Envie o contrato ou boletim PDF", type=["pdf"])
-if arquivo:
-    tabelas = processar_documento_documentai(arquivo, processor_id)
-    if tabelas and len(tabelas[0]) > 1:
-        colunas = tabelas[0][0]
-        dados = tabelas[0][1:]
-    
-        df = pd.DataFrame(dados, columns=colunas)
-        st.dataframe(df)
-    
-        # Botão para exportar para Excel
-        st.download_button(
-            "📥 Baixar Excel",
-            df.to_csv(index=False).encode("utf-8"),
-            file_name="tabela_medicao.csv",
-            mime="text/csv"
-        )
-    else:
-        st.warning("Nenhuma tabela encontrada.")
+    st.info("Por favor, envie **ambos os documentos** para realizar a análise.")
