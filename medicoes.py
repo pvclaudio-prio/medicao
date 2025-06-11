@@ -147,18 +147,31 @@ if st.button("🚀 Processar Documentos"):
     for tabela_info in tabelas_final:
         documentos_agrupados[tabela_info['documento']].append(pd.DataFrame(tabela_info["tabela"]))
     
-    # Exibir um único DataFrame por documento, usando a 1ª linha como header
     for nome_doc, lista_df in documentos_agrupados.items():
         try:
             df_unificado = pd.concat(lista_df, ignore_index=True)
+    
             if not df_unificado.empty:
-                df_unificado.columns = df_unificado.iloc[0]  # 1ª linha como cabeçalho
+                # Use a primeira linha como header e o restante como conteúdo
+                raw_header = df_unificado.iloc[0].fillna("")
+                unique_columns = []
+                seen = set()
+                for col in raw_header:
+                    col = str(col).strip()
+                    if not col or col in seen:
+                        count = sum(c.startswith("col") for c in seen)
+                        col = f"col_{count+1}"
+                    seen.add(col)
+                    unique_columns.append(col)
+                
+                df_unificado.columns = unique_columns
                 df_unificado = df_unificado[1:].reset_index(drop=True)
+    
             st.markdown(f"### 📄 Documento: <span style='color:green'><b>{nome_doc}</b></span>", unsafe_allow_html=True)
             st.dataframe(df_unificado)
         except Exception as e:
             st.warning(f"⚠️ Não foi possível unificar tabelas do documento `{nome_doc}`: {e}")
-
+        
     if tabelas_final and st.button("🔍 Analisar Conciliação com GPT-4o"):
         with st.spinner("Consultando GPT-4o..."):
             textos_para_analise = ""
