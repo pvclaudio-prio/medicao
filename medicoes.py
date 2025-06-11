@@ -30,8 +30,6 @@ def gerar_credenciais():
     }
     return service_account.Credentials.from_service_account_info(info)
 
-# Função para cortar PDF
-
 def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     doc_original = fitz.open(stream=file.read(), filetype="pdf")
     pdf_temp = fitz.open()
@@ -39,8 +37,6 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
         pdf_temp.insert_pdf(doc_original, from_page=i, to_page=i)
     temp_bytes = pdf_temp.write()
     return temp_bytes
-
-# Função para processar PDF com Document AI
 
 def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     credentials = gerar_credenciais()
@@ -73,10 +69,17 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
                 tabelas.append({"documento": nome_doc, "tabela": linhas})
     return tabelas
 
+# Escolha do tipo de processor
+tipo_processor = st.selectbox("🤖 Tipo de Processor do Document AI", options=["Form Parser", "Document OCR"])
+PROCESSOR_IDS = {
+    "Form Parser": st.secrets["google"].get("form_parser_processor"),
+    "Document OCR": st.secrets["google"].get("ocr_processor")
+}
+
 # Uploads
 st.header("📁 Upload de Arquivos")
-arquivos_boletim = st.file_uploader("Boletins de Medição", type=["pdf"], accept_multiple_files=True)
-arquivos_contrato = st.file_uploader("Contratos de Serviço", type=["pdf"], accept_multiple_files=True)
+arquivos_boletim = st.file_uploader("📤 Boletins de Medição", type=["pdf"], accept_multiple_files=True)
+arquivos_contrato = st.file_uploader("📤 Contratos de Serviço", type=["pdf"], accept_multiple_files=True)
 
 intervalos_boletim = {}
 intervalos_contrato = {}
@@ -101,10 +104,9 @@ if arquivos_contrato:
             fim = st.number_input(f"Página final ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_c_{arquivo.name}")
         intervalos_contrato[arquivo.name] = (inicio, fim)
 
-# Processamento
 if st.button("🚀 Processar Documentos"):
     st.subheader("🔎 Extração de Tabelas")
-    processor_id = st.secrets["google"]["contract_processor"]
+    processor_id = PROCESSOR_IDS[tipo_processor]
     tabelas_final = []
 
     if arquivos_boletim:
