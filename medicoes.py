@@ -106,7 +106,10 @@ if arquivos_contrato:
 
 if st.button("🚀 Processar Documentos"):
     st.subheader("🔎 Extração de Tabelas")
-    processor_id = PROCESSOR_IDS[tipo_processor]
+    processor_id = PROCESSOR_IDS.get(processor_type)
+    if not processor_id:
+        st.error(f"Nenhum processor configurado para o tipo selecionado: {processor_type}")
+        st.stop()
     tabelas_final = []
 
     if arquivos_boletim:
