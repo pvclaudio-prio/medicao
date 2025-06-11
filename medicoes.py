@@ -72,8 +72,8 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
 # Escolha do tipo de processor
 tipo_processor = st.selectbox("🤖 Tipo de Processor do Document AI", options=["Form Parser", "Document OCR"])
 PROCESSOR_IDS = {
-    "Form Parser": st.secrets["google"].get("form_parser_processor"),
-    "Document OCR": st.secrets["google"].get("ocr_processor")
+    "Form Parser": st.secrets["google"].get("form_parser_id"),
+    "Document OCR": st.secrets["google"].get("contract_processor")
 }
 
 # Uploads
