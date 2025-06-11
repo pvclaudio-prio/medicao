@@ -40,39 +40,46 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     return temp_bytes
 
 def organizar_tabela_com_gpt(documento_nome: str, df: pd.DataFrame) -> pd.DataFrame:
-    json_conteudo = df.fillna("").to_dict(orient="records")
-    prompt = f"""
-Você é um especialista em auditoria de documentos técnicos.
+    try:
+        tabela_json = df.fillna("").to_dict(orient="records")
+
+        prompt = f"""
+Você é um especialista em auditoria de documentos técnicos. Abaixo está uma tabela extraída de um PDF.
 
 Tarefa:
-1. Classifique a tabela abaixo como:
-    - Boletim de Medição Padrão
-    - Boletim de Medição - Adicionais
-    - Tabela de Contrato
-2. Normalize o conteúdo para conter colunas padronizadas com base no tipo:
-    - Boletim Padrão: FUNÇÃO, NOME, CATEGORIA, PERÍODO, QUANTIDADE, VALOR UNITÁRIO, TOTAL
-    - Adicionais: FUNÇÃO, NOME, HORAS, VALOR/HORA, DOBRA, TOTAL
-    - Contrato: ITEM, FUNÇÃO, FORMATO, QUANTIDADE, VALOR DA DIÁRIA
-3. Remova colunas duplicadas ou irrelevantes e corrija cabeçalhos, se necessário.
-4. Retorne apenas um JSON válido com os dados estruturados como uma lista de objetos, sem texto explicativo ou anotações.
+1. Classifique a tabela como:
+   - Boletim de Medição Padrão
+   - Boletim de Medição - Adicionais
+   - Tabela de Contrato
 
-Documento: {documento_nome}
+2. Padronize e retorne o conteúdo como uma lista JSON com colunas claras e uniformes conforme os padrões:
+   - Boletim padrão: FUNÇÃO, NOME, CATEGORIA, PERÍODO, QUANTIDADE, VALOR UNITÁRIO, TOTAL
+   - Adicionais: FUNÇÃO, NOME, HORAS, VALOR/HORA, DOBRA, TOTAL
+   - Contrato: ITEM, FUNÇÃO, FORMATO, QUANTIDADE, VALOR DA DIÁRIA
+
 ```json
-{json_conteudo}
+{json.dumps(tabela_json, indent=2, ensure_ascii=False)}
 ```
 """
     try:
-        response = openai.ChatCompletion.create(
+            response = openai.ChatCompletion.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos técnicos."},
+                {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2
         )
-        json_output = response.choices[0].message.content.strip()
-        df_limpo = pd.read_json(StringIO(json_output))
-        return df_limpo
+    
+        json_content = response.choices[0].message["content"]
+    
+        # Extrair JSON do texto (caso venha com markdown ou explicações)
+        json_inicio = json_content.find("[")
+        json_fim = json_content.rfind("]") + 1
+        json_puro = json_content[json_inicio:json_fim]
+    
+        return pd.DataFrame(json.loads(json_puro))
+    
     except Exception as e:
         st.warning(f"⚠️ GPT retornou uma resposta que não pôde ser convertida em DataFrame: {e}")
         return df
