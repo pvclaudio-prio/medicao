@@ -11,7 +11,7 @@ st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
-openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
+client = OpenAI(api_key=st.secrets["openai"]["OPENAI_API_KEY"])
 
 def gerar_credenciais():
     private_key = st.secrets["google"]["private_key"].replace("\\n", "\n")
@@ -62,16 +62,15 @@ Documento: {documento_nome}
 ```
 """
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.2,
-            max_tokens=1500
+            temperature=0.2
         )
-        csv_limpo = response["choices"][0]["message"]["content"]
+        csv_limpo = response.choices[0].message.content
         df_limpo = pd.read_csv(StringIO(csv_limpo))
         return df_limpo
     except Exception as e:
