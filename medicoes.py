@@ -53,12 +53,9 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     tabelas = []
 
     for page in doc.pages:
-        for table in page.tables:
-            linhas = []
-
-            header = table.header_rows or []
-            body = table.body_rows or []
-
+        try:
+            header = getattr(table, "header_rows", []) or []
+            body = getattr(table, "body_rows", []) or []
             for row in header + body:
                 linha = []
                 for cell in row.cells:
@@ -69,6 +66,8 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
                         linha.append(texto)
                 if linha:
                     linhas.append(linha)
+        except Exception as e:
+            st.warning(f"⚠️ Falha ao processar uma tabela em '{nome_doc}': {e}")
 
             if linhas:
                 tabelas.append({"documento": nome_doc, "tabela": linhas})
