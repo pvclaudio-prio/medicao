@@ -62,7 +62,7 @@ Documento: {documento_nome}
 ```
 """
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos técnicos."},
