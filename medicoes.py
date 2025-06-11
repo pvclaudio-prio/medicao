@@ -76,6 +76,11 @@ PROCESSOR_IDS = {
     "Document OCR": st.secrets["google"].get("contract_processor")
 }
 
+processor_id = PROCESSOR_IDS.get(processor_type)
+if not processor_id:
+    st.error(f"❌ Processor ID não encontrado para o tipo selecionado: `{processor_type}`.")
+    st.stop()
+
 # Uploads
 st.header("📁 Upload de Arquivos")
 arquivos_boletim = st.file_uploader("📤 Boletins de Medição", type=["pdf"], accept_multiple_files=True)
