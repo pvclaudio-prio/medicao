@@ -2,8 +2,6 @@ from google.cloud import documentai_v1 as documentai
 from google.oauth2 import service_account
 import streamlit as st
 import fitz
-import tempfile
-import io
 import pandas as pd
 import openai
 
@@ -35,8 +33,7 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     pdf_temp = fitz.open()
     for i in range(pagina_inicio - 1, pagina_fim):
         pdf_temp.insert_pdf(doc_original, from_page=i, to_page=i)
-    temp_bytes = pdf_temp.write()
-    return temp_bytes
+    return pdf_temp.write()
 
 def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     credentials = gerar_credenciais()
@@ -69,16 +66,15 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
                 tabelas.append({"documento": nome_doc, "tabela": linhas})
     return tabelas
 
-# Escolha do tipo de processor
+# Seletor de processador
 tipo_processor = st.selectbox("🤖 Tipo de Processor do Document AI", options=["Form Parser", "Document OCR"])
 PROCESSOR_IDS = {
     "Form Parser": st.secrets["google"].get("form_parser_id"),
     "Document OCR": st.secrets["google"].get("contract_processor")
 }
-
-processor_id = PROCESSOR_IDS.get(processor_type)
+processor_id = PROCESSOR_IDS.get(tipo_processor)
 if not processor_id:
-    st.error(f"❌ Processor ID não encontrado para o tipo selecionado: `{processor_type}`.")
+    st.error(f"❌ Processor ID não encontrado para o tipo selecionado: `{tipo_processor}`.")
     st.stop()
 
 # Uploads
@@ -86,35 +82,33 @@ st.header("📁 Upload de Arquivos")
 arquivos_boletim = st.file_uploader("📤 Boletins de Medição", type=["pdf"], accept_multiple_files=True)
 arquivos_contrato = st.file_uploader("📤 Contratos de Serviço", type=["pdf"], accept_multiple_files=True)
 
+# Inputs de intervalo de páginas
 intervalos_boletim = {}
 intervalos_contrato = {}
 
 if arquivos_boletim:
-    st.subheader("Intervalos de Páginas - Boletins")
+    st.subheader("📌 Intervalos de Páginas - Boletins")
     for arquivo in arquivos_boletim:
         col1, col2 = st.columns(2)
         with col1:
-            inicio = st.number_input(f"Página inicial ({arquivo.name})", min_value=1, value=1, key=f"inicio_b_{arquivo.name}")
+            inicio = st.number_input(f"Início ({arquivo.name})", min_value=1, value=1, key=f"inicio_b_{arquivo.name}")
         with col2:
-            fim = st.number_input(f"Página final ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_b_{arquivo.name}")
+            fim = st.number_input(f"Fim ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_b_{arquivo.name}")
         intervalos_boletim[arquivo.name] = (inicio, fim)
 
 if arquivos_contrato:
-    st.subheader("Intervalos de Páginas - Contratos")
+    st.subheader("📌 Intervalos de Páginas - Contratos")
     for arquivo in arquivos_contrato:
         col1, col2 = st.columns(2)
         with col1:
-            inicio = st.number_input(f"Página inicial ({arquivo.name})", min_value=1, value=1, key=f"inicio_c_{arquivo.name}")
+            inicio = st.number_input(f"Início ({arquivo.name})", min_value=1, value=1, key=f"inicio_c_{arquivo.name}")
         with col2:
-            fim = st.number_input(f"Página final ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_c_{arquivo.name}")
+            fim = st.number_input(f"Fim ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_c_{arquivo.name}")
         intervalos_contrato[arquivo.name] = (inicio, fim)
 
+# Processamento
 if st.button("🚀 Processar Documentos"):
     st.subheader("🔎 Extração de Tabelas")
-    processor_id = PROCESSOR_IDS.get(processor_type)
-    if not processor_id:
-        st.error(f"Nenhum processor configurado para o tipo selecionado: {processor_type}")
-        st.stop()
     tabelas_final = []
 
     if arquivos_boletim:
@@ -140,35 +134,34 @@ if st.button("🚀 Processar Documentos"):
         df = pd.DataFrame(tabela_info["tabela"])
         st.dataframe(df)
 
-    if tabelas_final:
-        if st.button("🔍 Analisar Conciliação com GPT-4o"):
-            with st.spinner("Consultando GPT-4o..."):
-                textos_para_analise = ""
-                for t in tabelas_final:
-                    df = pd.DataFrame(t["tabela"])
-                    textos_para_analise += f"Documento: {t['documento']}\n"
-                    textos_para_analise += df.to_csv(index=False)
-                    textos_para_analise += "\n"
+    if tabelas_final and st.button("🔍 Analisar Conciliação com GPT-4o"):
+        with st.spinner("Consultando GPT-4o..."):
+            textos_para_analise = ""
+            for t in tabelas_final:
+                df = pd.DataFrame(t["tabela"])
+                textos_para_analise += f"Documento: {t['documento']}\n"
+                textos_para_analise += df.to_csv(index=False)
+                textos_para_analise += "\n"
 
-                prompt = f"""
+            prompt = f"""
 Você é um auditor especializado em contratos de prestação de serviço.
 A seguir estão dados extraídos de contratos e boletins de medição.
 Analise os dados, identifique possíveis inconsistências e aponte observações relevantes.
 
 {textos_para_analise}
 """
-                try:
-                    response = openai.ChatCompletion.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "Você é um auditor de contratos de serviços."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.2,
-                        max_tokens=1500,
-                    )
-                    resultado = response["choices"][0]["message"]["content"]
-                    st.markdown("### 💬 Resultado da Conciliação")
-                    st.markdown(resultado)
-                except Exception as e:
-                    st.error(f"Erro ao consultar GPT-4o: {e}")
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "Você é um auditor de contratos de serviços."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=1500,
+                )
+                resultado = response["choices"][0]["message"]["content"]
+                st.markdown("### 💬 Resultado da Conciliação")
+                st.markdown(resultado)
+            except Exception as e:
+                st.error(f"Erro ao consultar GPT-4o: {e}")
