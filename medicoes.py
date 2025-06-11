@@ -4,6 +4,7 @@ import streamlit as st
 import fitz
 import pandas as pd
 import openai
+from collections import defaultdict
 
 st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️‍')
@@ -142,10 +143,21 @@ if st.button("🚀 Processar Documentos"):
 
     st.success("✅ Processamento concluído!")
 
+    documentos_agrupados = defaultdict(list)
     for tabela_info in tabelas_final:
-        st.markdown(f"#### 📄 Documento: `{tabela_info['documento']}`")
-        df = pd.DataFrame(tabela_info["tabela"])
-        st.dataframe(df)
+        documentos_agrupados[tabela_info['documento']].append(pd.DataFrame(tabela_info["tabela"]))
+    
+    # Exibir um único DataFrame por documento, usando a 1ª linha como header
+    for nome_doc, lista_df in documentos_agrupados.items():
+        try:
+            df_unificado = pd.concat(lista_df, ignore_index=True)
+            if not df_unificado.empty:
+                df_unificado.columns = df_unificado.iloc[0]  # 1ª linha como cabeçalho
+                df_unificado = df_unificado[1:].reset_index(drop=True)
+            st.markdown(f"### 📄 Documento: <span style='color:green'><b>{nome_doc}</b></span>", unsafe_allow_html=True)
+            st.dataframe(df_unificado)
+        except Exception as e:
+            st.warning(f"⚠️ Não foi possível unificar tabelas do documento `{nome_doc}`: {e}")
 
     if tabelas_final and st.button("🔍 Analisar Conciliação com GPT-4o"):
         with st.spinner("Consultando GPT-4o..."):
@@ -176,5 +188,6 @@ Analise os dados, identifique possíveis inconsistências e aponte observações
                 resultado = response["choices"][0]["message"]["content"]
                 st.markdown("### 💬 Resultado da Conciliação")
                 st.markdown(resultado)
+                
             except Exception as e:
                 st.error(f"Erro ao consultar GPT-4o: {e}")
