@@ -6,6 +6,7 @@ import pandas as pd
 import openai
 from io import StringIO
 from collections import defaultdict
+import json
 
 st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️')
@@ -39,39 +40,38 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     return temp_bytes
 
 def organizar_tabela_com_gpt(documento_nome: str, df: pd.DataFrame) -> pd.DataFrame:
-    csv_conteudo = df.to_csv(index=False)
+    json_conteudo = df.fillna("").to_dict(orient="records")
     prompt = f"""
-Você é um especialista em auditoria de documentos técnicos. Abaixo está uma tabela extraída de um PDF.
+Você é um especialista em auditoria de documentos técnicos.
 
 Tarefa:
-1. Identifique se a tabela é:
+1. Classifique a tabela abaixo como:
     - Boletim de Medição Padrão
     - Boletim de Medição - Adicionais
     - Tabela de Contrato
-2. Normalize as colunas para que contenham apenas:
-    - Para boletins padrão: FUNÇÃO, NOME, CATEGORIA, PERÍODO, QUANTIDADE, VALOR UNITÁRIO, TOTAL
-    - Para adicionais: FUNÇÃO, NOME, HORAS, VALOR/HORA, DOBRA, TOTAL
-    - Para contratos: ITEM, FUNÇÃO, FORMATO, QUANTIDADE, VALOR DA DIÁRIA
-3. Remova colunas vazias ou repetidas
-4. Corrija o cabeçalho, se necessário
-5. Retorne a tabela em CSV com cabeçalho
+2. Normalize o conteúdo para conter colunas padronizadas com base no tipo:
+    - Boletim Padrão: FUNÇÃO, NOME, CATEGORIA, PERÍODO, QUANTIDADE, VALOR UNITÁRIO, TOTAL
+    - Adicionais: FUNÇÃO, NOME, HORAS, VALOR/HORA, DOBRA, TOTAL
+    - Contrato: ITEM, FUNÇÃO, FORMATO, QUANTIDADE, VALOR DA DIÁRIA
+3. Remova colunas duplicadas ou irrelevantes e corrija cabeçalhos, se necessário.
+4. Retorne apenas um JSON válido com os dados estruturados como uma lista de objetos, sem texto explicativo ou anotações.
 
 Documento: {documento_nome}
-```csv
-{csv_conteudo}
+```json
+{json_conteudo}
 ```
 """
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos."},
+                {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos técnicos."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2
         )
-        csv_limpo = response.choices[0].message.content
-        df_limpo = pd.read_csv(StringIO(csv_limpo))
+        json_output = response.choices[0].message.content.strip()
+        df_limpo = pd.read_json(StringIO(json_output))
         return df_limpo
     except Exception as e:
         st.warning(f"⚠️ GPT retornou uma resposta que não pôde ser convertida em DataFrame: {e}")
