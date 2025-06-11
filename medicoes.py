@@ -1,7 +1,7 @@
 from google.cloud import documentai_v1 as documentai
 from google.oauth2 import service_account
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz
 import tempfile
 import io
 import pandas as pd
