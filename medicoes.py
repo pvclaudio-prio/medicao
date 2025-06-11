@@ -40,9 +40,12 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     return temp_bytes
 
 def organizar_tabela_com_gpt(documento_nome: str, df: pd.DataFrame) -> pd.DataFrame:
-    tabela_json = df.fillna("").to_dict(orient="records")
+    try:
+        import json
 
-    prompt = f"""
+        tabela_json = df.fillna("").to_dict(orient="records")
+
+        prompt = f"""
 Você é um especialista em auditoria de documentos técnicos. Abaixo está uma tabela extraída de um PDF.
 
 Tarefa:
@@ -72,10 +75,15 @@ Tarefa:
     
         json_content = response.choices[0].message["content"]
     
-        # Extrair somente a parte JSON da resposta
         json_inicio = json_content.find("[")
         json_fim = json_content.rfind("]") + 1
-        json_puro = json_content[json_inicio:json_fim]
+    
+        if json_inicio == -1 or json_fim == -1 or json_inicio >= json_fim:
+            raise ValueError("Não foi possível extrair JSON da resposta do GPT.")
+    
+        json_puro = json_content[json_inicio:json_fim].strip()
+        if not json_puro:
+            raise ValueError("A string JSON extraída está vazia.")
     
         return pd.DataFrame(json.loads(json_puro))
     
