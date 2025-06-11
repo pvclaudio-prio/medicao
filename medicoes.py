@@ -53,8 +53,9 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     for page in doc.pages:
         for table in page.tables:
             linhas = []
-            header = table.header_rows if table.header_rows else []
-            body = table.body_rows if table.body_rows else []
+            header = table.header_rows if table.header_rows is not None else []
+            body = table.body_rows if table.body_rows is not None else []
+            
             for row in header + body:
                 linha = []
                 for cell in row.cells:
