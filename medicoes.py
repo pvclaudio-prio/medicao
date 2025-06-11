@@ -3,7 +3,7 @@ from google.oauth2 import service_account
 import streamlit as st
 import fitz
 import pandas as pd
-import openai
+from openai import OpenAI
 from io import StringIO
 from collections import defaultdict
 
