@@ -3,7 +3,7 @@ from google.oauth2 import service_account
 import streamlit as st
 import fitz
 import pandas as pd
-from openai import OpenAI
+import openai
 from io import StringIO
 from collections import defaultdict
 
@@ -11,7 +11,7 @@ st.set_page_config(layout='wide')
 st.title('Análise dos Boletins de Medição 🕵️')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
-client = OpenAI(api_key=st.secrets["openai"]["OPENAI_API_KEY"])
+openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 
 def gerar_credenciais():
     private_key = st.secrets["google"]["private_key"].replace("\\n", "\n")
@@ -62,7 +62,7 @@ Documento: {documento_nome}
 ```
 """
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos."},
