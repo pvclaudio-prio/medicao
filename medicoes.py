@@ -54,10 +54,11 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
 
     for page in doc.pages:
         for table in page.tables:
+            linhas = []
             try:
-                linhas = []
-                header = getattr(table, "header_rows", []) or []
-                body = getattr(table, "body_rows", []) or []
+                # Corrige o erro do RepeatedComposite
+                header = list(getattr(table, "header_rows", []))
+                body = list(getattr(table, "body_rows", []))
 
                 for row in header + body:
                     linha = []
