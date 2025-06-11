@@ -4,10 +4,11 @@ import streamlit as st
 import fitz
 import pandas as pd
 import openai
+from io import StringIO
 from collections import defaultdict
 
 st.set_page_config(layout='wide')
-st.title('Análise dos Boletins de Medição 🕵️‍')
+st.title('Análise dos Boletins de Medição 🕵️')
 st.logo("PRIO_SEM_POLVO_PRIO_PANTONE_LOGOTIPO_Azul.png")
 
 openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
@@ -34,12 +35,52 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     pdf_temp = fitz.open()
     for i in range(pagina_inicio - 1, pagina_fim):
         pdf_temp.insert_pdf(doc_original, from_page=i, to_page=i)
-    return pdf_temp.write()
+    temp_bytes = pdf_temp.write()
+    return temp_bytes
+
+def organizar_tabela_com_gpt(documento_nome: str, df: pd.DataFrame) -> pd.DataFrame:
+    csv_conteudo = df.to_csv(index=False)
+    prompt = f"""
+Você é um especialista em auditoria de documentos técnicos. Abaixo está uma tabela extraída de um PDF.
+
+Tarefa:
+1. Identifique se a tabela é:
+    - Boletim de Medição Padrão
+    - Boletim de Medição - Adicionais
+    - Tabela de Contrato
+2. Normalize as colunas para que contenham apenas:
+    - Para boletins padrão: FUNÇÃO, NOME, CATEGORIA, PERÍODO, QUANTIDADE, VALOR UNITÁRIO, TOTAL
+    - Para adicionais: FUNÇÃO, NOME, HORAS, VALOR/HORA, DOBRA, TOTAL
+    - Para contratos: ITEM, FUNÇÃO, FORMATO, QUANTIDADE, VALOR DA DIÁRIA
+3. Remova colunas vazias ou repetidas
+4. Corrija o cabeçalho, se necessário
+5. Retorne a tabela em CSV com cabeçalho
+
+Documento: {documento_nome}
+```csv
+{csv_conteudo}
+```
+"""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=1500
+        )
+        csv_limpo = response["choices"][0]["message"]["content"]
+        df_limpo = pd.read_csv(StringIO(csv_limpo))
+        return df_limpo
+    except Exception as e:
+        st.warning(f"⚠️ GPT retornou uma resposta que não pôde ser convertida em DataFrame: {e}")
+        return df
 
 def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     credentials = gerar_credenciais()
     client = documentai.DocumentProcessorServiceClient(credentials=credentials)
-
     name = f"projects/{st.secrets['google']['project_id']}/locations/{st.secrets['google']['location']}/processors/{processor_id}"
     document = {"content": pdf_bytes, "mime_type": "application/pdf"}
     request = {"name": name, "raw_document": document}
@@ -54,38 +95,32 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     tabelas = []
 
     for page in doc.pages:
-        for table in page.tables:
+        for table in getattr(page, "tables", []):
             linhas = []
-            try:
-                # Corrige o erro do RepeatedComposite
-                header = list(getattr(table, "header_rows", []))
-                body = list(getattr(table, "body_rows", []))
-
-                for row in header + body:
-                    linha = []
-                    for cell in row.cells:
-                        if cell.layout.text_anchor.text_segments:
-                            start = cell.layout.text_anchor.text_segments[0].start_index
-                            end = cell.layout.text_anchor.text_segments[0].end_index
-                            texto = doc.text[start:end].strip()
-                            linha.append(texto)
-                    if linha:
-                        linhas.append(linha)
-
-                if linhas:
-                    tabelas.append({"documento": nome_doc, "tabela": linhas})
-
-            except Exception as e:
-                st.warning(f"⚠️ Falha ao processar uma tabela em '{nome_doc}': {e}")
+            header = getattr(table, "header_rows", [])
+            body = getattr(table, "body_rows", [])
+            for row in list(header) + list(body):
+                linha = []
+                for cell in row.cells:
+                    if cell.layout.text_anchor.text_segments:
+                        start = cell.layout.text_anchor.text_segments[0].start_index
+                        end = cell.layout.text_anchor.text_segments[0].end_index
+                        texto = doc.text[start:end].strip()
+                        linha.append(texto)
+                if linha:
+                    linhas.append(linha)
+            if linhas:
+                tabelas.append({"documento": nome_doc, "tabela": linhas})
 
     return tabelas
 
-# Seletor de processador
+# Escolha do tipo de processor
 tipo_processor = st.selectbox("🤖 Tipo de Processor do Document AI", options=["Form Parser", "Document OCR"])
 PROCESSOR_IDS = {
     "Form Parser": st.secrets["google"].get("form_parser_id"),
     "Document OCR": st.secrets["google"].get("contract_processor")
 }
+
 processor_id = PROCESSOR_IDS.get(tipo_processor)
 if not processor_id:
     st.error(f"❌ Processor ID não encontrado para o tipo selecionado: `{tipo_processor}`.")
@@ -93,34 +128,32 @@ if not processor_id:
 
 # Uploads
 st.header("📁 Upload de Arquivos")
-arquivos_boletim = st.file_uploader("📤 Boletins de Medição", type=["pdf"], accept_multiple_files=True)
-arquivos_contrato = st.file_uploader("📤 Contratos de Serviço", type=["pdf"], accept_multiple_files=True)
+arquivos_boletim = st.file_uploader("📄 Boletins de Medição", type=["pdf"], accept_multiple_files=True)
+arquivos_contrato = st.file_uploader("📄 Contratos de Serviço", type=["pdf"], accept_multiple_files=True)
 
-# Inputs de intervalo de páginas
 intervalos_boletim = {}
 intervalos_contrato = {}
 
 if arquivos_boletim:
-    st.subheader("📌 Intervalos de Páginas - Boletins")
+    st.subheader("Intervalos de Páginas - Boletins")
     for arquivo in arquivos_boletim:
         col1, col2 = st.columns(2)
         with col1:
-            inicio = st.number_input(f"Início ({arquivo.name})", min_value=1, value=1, key=f"inicio_b_{arquivo.name}")
+            inicio = st.number_input(f"Página inicial ({arquivo.name})", min_value=1, value=1, key=f"inicio_b_{arquivo.name}")
         with col2:
-            fim = st.number_input(f"Fim ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_b_{arquivo.name}")
+            fim = st.number_input(f"Página final ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_b_{arquivo.name}")
         intervalos_boletim[arquivo.name] = (inicio, fim)
 
 if arquivos_contrato:
-    st.subheader("📌 Intervalos de Páginas - Contratos")
+    st.subheader("Intervalos de Páginas - Contratos")
     for arquivo in arquivos_contrato:
         col1, col2 = st.columns(2)
         with col1:
-            inicio = st.number_input(f"Início ({arquivo.name})", min_value=1, value=1, key=f"inicio_c_{arquivo.name}")
+            inicio = st.number_input(f"Página inicial ({arquivo.name})", min_value=1, value=1, key=f"inicio_c_{arquivo.name}")
         with col2:
-            fim = st.number_input(f"Fim ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_c_{arquivo.name}")
+            fim = st.number_input(f"Página final ({arquivo.name})", min_value=inicio, value=inicio, key=f"fim_c_{arquivo.name}")
         intervalos_contrato[arquivo.name] = (inicio, fim)
 
-# Processamento
 if st.button("🚀 Processar Documentos"):
     st.subheader("🔎 Extração de Tabelas")
     tabelas_final = []
@@ -145,62 +178,14 @@ if st.button("🚀 Processar Documentos"):
 
     documentos_agrupados = defaultdict(list)
     for tabela_info in tabelas_final:
-        documentos_agrupados[tabela_info['documento']].append(pd.DataFrame(tabela_info["tabela"]))
-    
+        df_raw = pd.DataFrame(tabela_info["tabela"])
+        df_tratado = organizar_tabela_com_gpt(tabela_info["documento"], df_raw)
+        documentos_agrupados[tabela_info['documento']].append(df_tratado)
+
     for nome_doc, lista_df in documentos_agrupados.items():
         try:
             df_unificado = pd.concat(lista_df, ignore_index=True)
-    
-            if not df_unificado.empty:
-                # Use a primeira linha como header e o restante como conteúdo
-                raw_header = df_unificado.iloc[0].fillna("")
-                unique_columns = []
-                seen = set()
-                for col in raw_header:
-                    col = str(col).strip()
-                    if not col or col in seen:
-                        count = sum(c.startswith("col") for c in seen)
-                        col = f"col_{count+1}"
-                    seen.add(col)
-                    unique_columns.append(col)
-                
-                df_unificado.columns = unique_columns
-                df_unificado = df_unificado[1:].reset_index(drop=True)
-    
             st.markdown(f"### 📄 Documento: <span style='color:green'><b>{nome_doc}</b></span>", unsafe_allow_html=True)
             st.dataframe(df_unificado)
         except Exception as e:
             st.warning(f"⚠️ Não foi possível unificar tabelas do documento `{nome_doc}`: {e}")
-        
-    if tabelas_final and st.button("🔍 Analisar Conciliação com GPT-4o"):
-        with st.spinner("Consultando GPT-4o..."):
-            textos_para_analise = ""
-            for t in tabelas_final:
-                df = pd.DataFrame(t["tabela"])
-                textos_para_analise += f"Documento: {t['documento']}\n"
-                textos_para_analise += df.to_csv(index=False)
-                textos_para_analise += "\n"
-
-            prompt = f"""
-Você é um auditor especializado em contratos de prestação de serviço.
-A seguir estão dados extraídos de contratos e boletins de medição.
-Analise os dados, identifique possíveis inconsistências e aponte observações relevantes.
-
-{textos_para_analise}
-"""
-            try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "Você é um auditor de contratos de serviços."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.2,
-                    max_tokens=1500,
-                )
-                resultado = response["choices"][0]["message"]["content"]
-                st.markdown("### 💬 Resultado da Conciliação")
-                st.markdown(resultado)
-                
-            except Exception as e:
-                st.error(f"Erro ao consultar GPT-4o: {e}")
