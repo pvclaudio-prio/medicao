@@ -62,7 +62,7 @@ Tarefa:
 ```
 """
     try:
-            response = openai.ChatCompletion.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Você é um assistente que organiza tabelas extraídas de documentos."},
