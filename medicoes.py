@@ -38,6 +38,7 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
 def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     credentials = gerar_credenciais()
     client = documentai.DocumentProcessorServiceClient(credentials=credentials)
+
     name = f"projects/{st.secrets['google']['project_id']}/locations/{st.secrets['google']['location']}/processors/{processor_id}"
     document = {"content": pdf_bytes, "mime_type": "application/pdf"}
     request = {"name": name, "raw_document": document}
@@ -50,12 +51,14 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
 
     doc = result.document
     tabelas = []
+
     for page in doc.pages:
         for table in page.tables:
             linhas = []
-            header = table.header_rows if table.header_rows is not None else []
-            body = table.body_rows if table.body_rows is not None else []
-            
+
+            header = table.header_rows or []
+            body = table.body_rows or []
+
             for row in header + body:
                 linha = []
                 for cell in row.cells:
@@ -64,9 +67,12 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
                         end = cell.layout.text_anchor.text_segments[0].end_index
                         texto = doc.text[start:end].strip()
                         linha.append(texto)
-                linhas.append(linha)
+                if linha:
+                    linhas.append(linha)
+
             if linhas:
                 tabelas.append({"documento": nome_doc, "tabela": linhas})
+
     return tabelas
 
 # Seletor de processador
