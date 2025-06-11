@@ -39,7 +39,7 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     temp_bytes = pdf_temp.write()
     return temp_bytes
 
-def organizar_tabela_com_gpt(documento_nome: str, df: pd.DataFrame) -> pd.DataFrame
+def organizar_tabela_com_gpt(documento_nome: str, df: pd.DataFrame) -> pd.DataFrame:
     tabela_json = df.fillna("").to_dict(orient="records")
 
     prompt = f"""
