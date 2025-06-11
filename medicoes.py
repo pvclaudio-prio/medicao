@@ -40,10 +40,9 @@ def extrair_paginas_pdf(file, pagina_inicio, pagina_fim):
     return temp_bytes
 
 def organizar_tabela_com_gpt(documento_nome: str, df: pd.DataFrame) -> pd.DataFrame:
-    try:
-        tabela_json = df.fillna("").to_dict(orient="records")
+    tabela_json = df.fillna("").to_dict(orient="records")
 
-        prompt = f"""
+    prompt = f"""
 Você é um especialista em auditoria de documentos técnicos. Abaixo está uma tabela extraída de um PDF.
 
 Tarefa:
@@ -73,7 +72,7 @@ Tarefa:
     
         json_content = response.choices[0].message["content"]
     
-        # Extrair JSON do texto (caso venha com markdown ou explicações)
+        # Extrair somente a parte JSON da resposta
         json_inicio = json_content.find("[")
         json_fim = json_content.rfind("]") + 1
         json_puro = json_content[json_inicio:json_fim]
