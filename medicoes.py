@@ -12,6 +12,27 @@ import io
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
+def gerar_credenciais():
+    try:
+        private_key = st.secrets["google"]["private_key"].replace("\\n", "\n")
+        info = {
+            "type": st.secrets["google"]["type"],
+            "project_id": st.secrets["google"]["project_id"],
+            "private_key_id": st.secrets["google"]["private_key_id"],
+            "private_key": private_key,
+            "client_email": st.secrets["google"]["client_email"],
+            "client_id": st.secrets["google"]["client_id"],
+            "auth_uri": st.secrets["google"]["auth_uri"],
+            "token_uri": st.secrets["google"]["token_uri"],
+            "auth_provider_x509_cert_url": st.secrets["google"]["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": st.secrets["google"]["client_x509_cert_url"],
+            "universe_domain": st.secrets["google"]["universe_domain"]
+        }
+        return service_account.Credentials.from_service_account_info(info)
+    except Exception as e:
+        st.error(f"Erro ao gerar credenciais: {e}")
+        st.stop()
+        
 def extrair_paginas_pdf(file_bytes, pagina_inicio, pagina_fim):
     try:
         with fitz.open(stream=file_bytes, filetype="pdf") as doc_original:
@@ -26,6 +47,89 @@ def extrair_paginas_pdf(file_bytes, pagina_inicio, pagina_fim):
         st.error(f"Erro ao extrair páginas do PDF: {e}")
         return None
 
+def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
+    credentials = gerar_credenciais()
+    client = documentai.DocumentProcessorServiceClient(credentials=credentials)
+    name = f"projects/{st.secrets['google']['project_id']}/locations/{st.secrets['google']['location']}/processors/{processor_id}"
+    document = {"content": pdf_bytes, "mime_type": "application/pdf"}
+    request = {"name": name, "raw_document": document}
+
+    try:
+        result = client.process_document(request=request)
+    except Exception as e:
+        st.error(f"❌ Erro ao processar documento '{nome_doc}':\n\n{e}")
+        return []
+
+    doc = result.document
+    tabelas = []
+
+    for page in doc.pages:
+        for table in getattr(page, "tables", []):
+            linhas = []
+            header = getattr(table, "header_rows", [])
+            body = getattr(table, "body_rows", [])
+            for row in list(header) + list(body):
+                linha = []
+                for cell in row.cells:
+                    if cell.layout.text_anchor.text_segments:
+                        start = cell.layout.text_anchor.text_segments[0].start_index
+                        end = cell.layout.text_anchor.text_segments[0].end_index
+                        texto = doc.text[start:end].strip()
+                        linha.append(texto)
+                if linha:
+                    linhas.append(linha)
+            if linhas:
+                tabelas.append({"documento": nome_doc, "tabela": linhas})
+
+    return tabelas
+
+def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.DataFrame) -> pd.DataFrame:
+    df_boletim = df_boletim_raw.copy()
+    df_boletim['ITEM_DESCRICAO'] = df_boletim['ITEM_DESCRICAO'].str.upper().str.strip()
+    df_contrato['DESCRICAO'] = df_contrato['DESCRICAO'].str.upper().str.strip()
+
+    df_merged = df_boletim.merge(
+        df_contrato,
+        left_on="ITEM_DESCRICAO",
+        right_on="DESCRICAO",
+        how="left",
+        suffixes=('', '_CONTRATO')
+    )
+
+    # Calcular totais por linha
+    def calcular_total(row):
+        return (
+            (row.get('QTD_STANDBY', 0) or 0) * (row.get('VALOR_UNITARIO_STANDBY', 0) or 0) +
+            (row.get('QTD_OPERACIONAL', 0) or 0) * (row.get('VALOR_UNITARIO_OPERACIONAL', 0) or 0) +
+            (row.get('QTD_DOBRA', 0) or 0) * (row.get('VALOR_UNITARIO_DOBRA', 0) or 0)
+        )
+
+    df_merged['TOTAL_RECALCULADO'] = df_merged.apply(calcular_total, axis=1)
+
+    # Flag de valores unitários divergentes
+    df_merged['FLAG_VALOR_DIVERGENTE'] = (
+        (np.round(df_merged['VALOR_UNITARIO_STANDBY'], 2) != np.round(df_merged['VALOR_STANDBY'], 2)) |
+        (np.round(df_merged['VALOR_UNITARIO_OPERACIONAL'], 2) != np.round(df_merged['VALOR_UNITARIO'], 2))
+    ).map({True: 'Sim', False: 'Não'})
+
+    # Flag de total recalculado diferente
+    df_merged['DIF_TOTAL'] = abs(df_merged['TOTAL_RECALCULADO'] - df_merged.get('TOTAL_COBRADO', 0))
+    df_merged['FLAG_TOTAL_RECALCULADO_DIFERENTE'] = (df_merged['DIF_TOTAL'] > 1.0).map({True: 'Sim', False: 'Não'})
+
+    # Flag de duplicidade de descrição
+    df_merged['FLAG_DESCRICAO_DUPLICADA'] = df_merged.duplicated(subset=['DESCRICAO_COMPLETA'], keep=False).map({True: 'Sim', False: 'Não'})
+
+    # Seleção de colunas finais (proteção se não existir)
+    colunas_finais = [col for col in [
+        'ITEM_DESCRICAO', 'DESCRICAO_COMPLETA', 'UNIDADE',
+        'QTD_STANDBY', 'QTD_OPERACIONAL', 'QTD_DOBRA', 'QTD_TOTAL',
+        'VALOR_UNITARIO_STANDBY', 'VALOR_STANDBY',
+        'VALOR_UNITARIO_OPERACIONAL', 'VALOR_UNITARIO',
+        'TOTAL_STANDBY', 'TOTAL_OPERACIONAL', 'TOTAL_DOBRA', 'TOTAL_COBRADO', 'TOTAL_RECALCULADO',
+        'FLAG_VALOR_DIVERGENTE', 'FLAG_TOTAL_RECALCULADO_DIFERENTE', 'FLAG_DESCRICAO_DUPLICADA'
+    ] if col in df_merged.columns]
+
+    return df_merged[colunas_finais]
 
 # === 📚 Menu lateral ===
 st.sidebar.title("📁 Navegação")
