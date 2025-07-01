@@ -135,39 +135,18 @@ def organizar_tabela_com_gpt(nome_doc, df_raw):
         import openai
         openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 
-        # Converte o dataframe bruto em texto
         tabela_texto = df_raw.to_csv(index=False, sep=";")
 
-        # Prompt de instrução
         prompt = f"""
-Você é um assistente especialista em estruturação de dados de boletins de medição.
+Você é um assistente especialista em estruturação de boletins de medição. Abaixo está uma tabela extraída de OCR. Organize os dados no formato JSON com colunas padronizadas como:
 
-A seguir está uma tabela extraída de OCR de um boletim com possíveis erros de formatação. Seu objetivo é organizar e estruturar os dados com colunas padronizadas:
+["ITEM_DESCRICAO", "DESCRICAO_COMPLETA", "UNIDADE", "QTD_STANDBY", "QTD_OPERACIONAL", "QTD_DOBRA", "QTD_TOTAL", "VALOR_UNITARIO_STANDBY", "VALOR_UNITARIO_OPERACIONAL", "VALOR_UNITARIO_DOBRA", "TOTAL_STANDBY", "TOTAL_OPERACIONAL", "TOTAL_DOBRA", "TOTAL_COBRADO"]
 
-Colunas desejadas:
-- ITEM_DESCRICAO
-- DESCRICAO_COMPLETA
-- UNIDADE
-- QTD_STANDBY
-- QTD_OPERACIONAL
-- QTD_DOBRA
-- QTD_TOTAL
-- VALOR_UNITARIO_STANDBY
-- VALOR_UNITARIO_OPERACIONAL
-- VALOR_UNITARIO_DOBRA
-- TOTAL_STANDBY
-- TOTAL_OPERACIONAL
-- TOTAL_DOBRA
-- TOTAL_COBRADO
-
-Se algum campo não existir na tabela original, preencha com 0 ou deixe em branco.
+Se algum campo não existir, preencha com 0 ou string vazia.
 
 Documento: {nome_doc}
-
-Tabela original:
+Tabela extraída:
 {tabela_texto}
-
-Retorne os dados em formato JSON (lista de dicionários).
 """
 
         resposta = openai.ChatCompletion.create(
@@ -177,15 +156,22 @@ Retorne os dados em formato JSON (lista de dicionários).
             max_tokens=4000
         )
 
-        conteudo = resposta.choices[0].message["content"]
+        conteudo = resposta.choices[0].message["content"].strip()
+
+        if not conteudo.startswith("[") and not conteudo.startswith("{"):
+            st.error(f"⚠️ Resposta inesperada da OpenAI para `{nome_doc}`:\n\n{conteudo}")
+            return df_raw
+
         dados = json.loads(conteudo)
         df_tratado = pd.DataFrame(dados)
-
         return df_tratado
 
+    except json.JSONDecodeError as e:
+        st.error(f"Erro ao decodificar JSON da resposta do GPT para `{nome_doc}`: {e}")
+        return df_raw
     except Exception as e:
         st.error(f"Erro ao organizar tabela com GPT para o documento `{nome_doc}`: {e}")
-        return df_raw  # retorna a tabela original em caso de erro
+        return df_raw
 
 # === 📚 Menu lateral ===
 st.sidebar.title("📁 Navegação")
