@@ -8,6 +8,8 @@ from google.oauth2 import service_account
 import json
 from collections import defaultdict
 import io
+from PIL import Image
+import pytesseract
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
@@ -264,46 +266,82 @@ if pagina == "📄 Upload de Documentos":
 if pagina == "🔎 Visualização":
     st.header("🔎 Visualização das Tabelas Extraídas")
 
-    # Verifica se há dados extraídos
-    if "tabelas_extraidas" not in st.session_state:
-        st.warning("⚠️ Nenhuma tabela foi processada ainda. Vá para '📄 Upload de Documentos' e clique em 'Processar Documentos'.")
-        st.stop()
+    # Se houver tabelas extraídas automaticamente com Document AI
+    if "tabelas_extraidas" in st.session_state:
+        st.subheader("📦 Tabelas extraídas com Document AI")
+        tabelas_extraidas = st.session_state["tabelas_extraidas"]
+        tabelas_tratadas = defaultdict(list)
 
-    # === Base oficial de contrato ===
-    df_contrato = pd.DataFrame([
-        {"ID_ITEM": "1.1", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "Operador Técnico", "UNIDADE": "Diária", "VALOR_UNITARIO": 1672.00, "VALOR_STANDBY": 1337.60},
-        {"ID_ITEM": "1.2", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "Técnico Especializado (Supervisor)", "UNIDADE": "Diária", "VALOR_UNITARIO": 1995.00, "VALOR_STANDBY": 1596.00},
-        {"ID_ITEM": "2.1", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Flanges Kit", "UNIDADE": "Diária", "VALOR_UNITARIO": 475.00, "VALOR_STANDBY": 403.75},
-        {"ID_ITEM": "2.2", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Chemical Cleaning Equipment (EX)", "UNIDADE": "Diária", "VALOR_UNITARIO": 807.50, "VALOR_STANDBY": 686.38},
-        {"ID_ITEM": "2.3", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Hydrojetting Equipment", "UNIDADE": "Diária", "VALOR_UNITARIO": 1795.50, "VALOR_STANDBY": 1526.18},
-        {"ID_ITEM": "3.1", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Pessoal", "UNIDADE": "Evento", "VALOR_UNITARIO": 1850.00, "VALOR_STANDBY": 1850.00},
-        {"ID_ITEM": "3.2", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Equipamento", "UNIDADE": "Evento", "VALOR_UNITARIO": 3350.00, "VALOR_STANDBY": 3350.00},
-    ])
+        for tabela_info in tabelas_extraidas:
+            nome_doc = tabela_info["documento"]
+            df_raw = pd.DataFrame(tabela_info["tabela"])
 
-    # === Organização das tabelas ===
-    tabelas_extraidas = st.session_state["tabelas_extraidas"]
-    tabelas_tratadas = defaultdict(list)
+            with st.spinner(f"🧠 Organizando tabelas de {nome_doc} com GPT..."):
+                try:
+                    df_tratada = organizar_tabela_com_gpt(nome_doc, df_raw)
+                    tabelas_tratadas[nome_doc].append(df_tratada)
+                except Exception as e:
+                    st.warning(f"Erro ao organizar tabela com GPT para o documento {nome_doc}: {e}")
 
-    for tabela_info in tabelas_extraidas:
-        nome_doc = tabela_info["documento"]
-        df_raw = pd.DataFrame(tabela_info["tabela"])
+        st.session_state["tabelas_tratadas"] = tabelas_tratadas
 
-        with st.spinner(f"🧠 Organizando tabelas de {nome_doc} com GPT..."):
-            df_tratada = organizar_tabela_com_gpt(nome_doc, df_raw)
-            tabelas_tratadas[nome_doc].append(df_tratada)
+        for nome_doc, lista_df in tabelas_tratadas.items():
+            try:
+                df_unificado = pd.concat(lista_df, ignore_index=True)
+                st.markdown(f"### 📄 Documento: <span style='color:green'><b>{nome_doc}</b></span>", unsafe_allow_html=True)
+                st.dataframe(df_unificado)
+            except Exception as e:
+                st.warning(f"⚠️ Erro ao unificar tabelas do documento `{nome_doc}`: {e}")
+    else:
+        st.info("ℹ️ Nenhuma tabela extraída com Document AI. Use uma das opções abaixo.")
 
-    # Armazenar para etapas seguintes
-    st.session_state["tabelas_tratadas"] = tabelas_tratadas
-    st.session_state["df_contrato"] = df_contrato  # salva para reutilização em outras páginas
+    # 🔽 Escolha alternativa para estruturar boletim
+    st.subheader("📥 Escolha a origem para estruturar o boletim manualmente")
 
-    # Exibição por documento
-    for nome_doc, lista_df in tabelas_tratadas.items():
+    origem_boletim = st.selectbox(
+        "Como deseja estruturar os dados do boletim?",
+        options=[
+            "🔍 OCR automático via imagem da 1ª página",
+            "📝 Inserção manual do texto extraído"
+        ]
+    )
+
+    # 🚀 Tratamento via OCR
+    if origem_boletim == "🔍 OCR automático via imagem da 1ª página":
+        st.subheader("📷 OCR da 1ª página do PDF")
+
+        if "arquivo_boletim" not in st.session_state:
+            st.error("⚠️ Nenhum arquivo PDF foi armazenado. Faça o upload novamente na aba 📄 Upload.")
+            st.stop()
+
         try:
-            df_unificado = pd.concat(lista_df, ignore_index=True)
-            st.markdown(f"### 📄 Documento: <span style='color:green'><b>{nome_doc}</b></span>", unsafe_allow_html=True)
-            st.dataframe(df_unificado)
+            # Carrega e processa a 1ª página
+            arquivo = st.session_state["arquivo_boletim"]
+            doc = fitz.open(stream=arquivo.read(), filetype="pdf")
+            page = doc.load_page(0)
+            pix = page.get_pixmap(dpi=300)
+            image_bytes = pix.tobytes("png")
+            image = Image.open(io.BytesIO(image_bytes))
+            st.image(image, caption="Página 1 do PDF (OCR)", use_column_width=True)
+
+            # Executa OCR
+            ocr_text = pytesseract.image_to_string(image, lang="por")  # ajuste o lang se necessário
+            st.text_area("📄 Texto extraído via OCR:", ocr_text, height=400, key="ocr_text_area")
+            st.session_state["texto_boletim_estruturado"] = ocr_text
+
         except Exception as e:
-            st.warning(f"⚠️ Erro ao unificar tabelas do documento `{nome_doc}`: {e}")
+            st.error(f"Erro ao executar OCR: {e}")
+
+    # ✍️ Inserção manual
+    elif origem_boletim == "📝 Inserção manual do texto extraído":
+        texto_manual = st.text_area("✍️ Cole aqui o texto da tabela extraído do PDF:", height=400, key="texto_manual_area")
+        st.session_state["texto_boletim_estruturado"] = texto_manual
+
+    # Mostra botão de próxima etapa
+    if "texto_boletim_estruturado" in st.session_state and st.session_state["texto_boletim_estruturado"].strip():
+        st.success("✅ Texto armazenado com sucesso! Pronto para estruturar.")
+    else:
+        st.info("ℹ️ Nenhum texto informado ainda.")
 
 if pagina == "⚖️ Conciliação":
     st.header("⚖️ Conciliação entre Boletins e Contrato")
