@@ -308,6 +308,11 @@ if pagina == "🔎 Visualização":
 if pagina == "⚖️ Conciliação":
     st.header("⚖️ Conciliação entre Boletins e Contrato")
 
+    if "df_contrato" not in st.session_state:
+        st.warning("⚠️ A base de contrato não está disponível. Volte para a aba '🔎 Visualização' para processar os dados.")
+        st.stop()
+    df_contrato = st.session_state["df_contrato"]
+
     if "tabelas_tratadas" not in st.session_state:
         st.warning("⚠️ Nenhum dado tratado disponível. Vá para '🔎 Visualização' primeiro.")
         st.stop()
