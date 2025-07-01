@@ -130,6 +130,63 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
 
     return df_merged[colunas_finais]
 
+def organizar_tabela_com_gpt(nome_doc, df_raw):
+    try:
+        import openai
+        openai.api_key = st.secrets["openai"]["api_key"]
+
+        # Converte o dataframe bruto em texto
+        tabela_texto = df_raw.to_csv(index=False, sep=";")
+
+        # Prompt de instrução
+        prompt = f"""
+Você é um assistente especialista em estruturação de dados de boletins de medição.
+
+A seguir está uma tabela extraída de OCR de um boletim com possíveis erros de formatação. Seu objetivo é organizar e estruturar os dados com colunas padronizadas:
+
+Colunas desejadas:
+- ITEM_DESCRICAO
+- DESCRICAO_COMPLETA
+- UNIDADE
+- QTD_STANDBY
+- QTD_OPERACIONAL
+- QTD_DOBRA
+- QTD_TOTAL
+- VALOR_UNITARIO_STANDBY
+- VALOR_UNITARIO_OPERACIONAL
+- VALOR_UNITARIO_DOBRA
+- TOTAL_STANDBY
+- TOTAL_OPERACIONAL
+- TOTAL_DOBRA
+- TOTAL_COBRADO
+
+Se algum campo não existir na tabela original, preencha com 0 ou deixe em branco.
+
+Documento: {nome_doc}
+
+Tabela original:
+{tabela_texto}
+
+Retorne os dados em formato JSON (lista de dicionários).
+"""
+
+        resposta = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=4000
+        )
+
+        conteudo = resposta.choices[0].message["content"]
+        dados = json.loads(conteudo)
+        df_tratado = pd.DataFrame(dados)
+
+        return df_tratado
+
+    except Exception as e:
+        st.error(f"Erro ao organizar tabela com GPT para o documento `{nome_doc}`: {e}")
+        return df_raw  # retorna a tabela original em caso de erro
+
 # === 📚 Menu lateral ===
 st.sidebar.title("📁 Navegação")
 pagina = st.sidebar.radio(
