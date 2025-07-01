@@ -7,7 +7,6 @@ from google.cloud import documentai_v1 as documentai
 from google.oauth2 import service_account
 import json
 from collections import defaultdict
-from io import BytesIO
 import io
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
@@ -82,15 +81,6 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
                 tabelas.append({"documento": nome_doc, "tabela": linhas})
 
     return tabelas
-
-for arquivo in arquivos_boletim:
-    inicio, fim = intervalos_boletim[arquivo.name]
-
-    file_bytes = arquivo.read()
-    pdf_bytes = extrair_paginas_pdf(file_bytes, inicio, fim)
-
-    if pdf_bytes:
-        tabelas = processar_documento_documentai(pdf_bytes, processor_id, arquivo.name)
     
 def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.DataFrame) -> pd.DataFrame:
     df_boletim = df_boletim_raw.copy()
@@ -296,6 +286,7 @@ if pagina == "⚖️ Conciliação":
 
     except Exception as e:
         st.error(f"Erro ao realizar conciliação: {e}")
+        
 if pagina == "📤 Exportação":
     st.header("📤 Exportação dos Resultados de Conciliação")
 
