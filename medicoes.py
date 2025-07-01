@@ -12,6 +12,21 @@ import io
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
+def extrair_paginas_pdf(file_bytes, pagina_inicio, pagina_fim):
+    try:
+        with fitz.open(stream=file_bytes, filetype="pdf") as doc_original:
+            num_paginas = len(doc_original)
+            pdf_temp = fitz.open()
+            for i in range(pagina_inicio - 1, min(pagina_fim, num_paginas)):
+                pdf_temp.insert_pdf(doc_original, from_page=i, to_page=i)
+            temp_bytes = pdf_temp.write()
+            pdf_temp.close()
+        return temp_bytes
+    except Exception as e:
+        st.error(f"Erro ao extrair páginas do PDF: {e}")
+        return None
+
+
 # === 📚 Menu lateral ===
 st.sidebar.title("📁 Navegação")
 pagina = st.sidebar.radio(
