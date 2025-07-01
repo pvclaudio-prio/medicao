@@ -53,7 +53,7 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     name = f"projects/{st.secrets['google']['project_id']}/locations/{st.secrets['google']['location']}/processors/{processor_id}"
     document = {"content": pdf_bytes, "mime_type": "application/pdf"}
     request = {"name": name, "raw_document": document}
-
+    
     try:
         result = client.process_document(request=request)
     except Exception as e:
@@ -83,6 +83,15 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
 
     return tabelas
 
+for arquivo in arquivos_boletim:
+    inicio, fim = intervalos_boletim[arquivo.name]
+
+    file_bytes = arquivo.read()
+    pdf_bytes = extrair_paginas_pdf(file_bytes, inicio, fim)
+
+    if pdf_bytes:
+        tabelas = processar_documento_documentai(pdf_bytes, processor_id, arquivo.name)
+    
 def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.DataFrame) -> pd.DataFrame:
     df_boletim = df_boletim_raw.copy()
     df_boletim['ITEM_DESCRICAO'] = df_boletim['ITEM_DESCRICAO'].str.upper().str.strip()
