@@ -62,27 +62,20 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
         return []
 
     doc = result.document
-    tabelas = []
+    campos = defaultdict(list)
 
-    for page in doc.pages:
-        for table in getattr(page, "tables", []):
-            linhas = []
-            header = getattr(table, "header_rows", [])
-            body = getattr(table, "body_rows", [])
-            for row in list(header) + list(body):
-                linha = []
-                for cell in row.cells:
-                    if cell.layout.text_anchor.text_segments:
-                        start = cell.layout.text_anchor.text_segments[0].start_index
-                        end = cell.layout.text_anchor.text_segments[0].end_index
-                        texto = doc.text[start:end].strip()
-                        linha.append(texto)
-                if linha:
-                    linhas.append(linha)
-            if linhas:
-                tabelas.append({"documento": nome_doc, "tabela": linhas})
+    for entity in doc.entities:
+        field_name = entity.type_.lower()
+        value = entity.mention_text.strip() if entity.mention_text else ""
+        campos[field_name].append(value)
 
-    return tabelas
+    if not campos:
+        st.warning(f"⚠️ Nenhum campo encontrado para o documento: {nome_doc}")
+        return []
+
+    # Conversão para DataFrame estruturado por linha
+    df = pd.DataFrame.from_dict(campos, orient="index").transpose()
+    return [{"documento": nome_doc, "tabela": df}]
     
 def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.DataFrame) -> pd.DataFrame:
     df_boletim = df_boletim_raw.copy()
@@ -191,10 +184,11 @@ if pagina == "📄 Upload de Documentos":
     st.header("📄 Upload de Documentos para Análise")
 
     # Seleção do tipo de processor
-    tipo_processor = st.selectbox("🤖 Tipo de Processor do Document AI", options=["Form Parser", "Document OCR"])
+    tipo_processor = st.selectbox("🤖 Tipo de Processor do Document AI", options=["Form Parser", "Document OCR", "Custom Extractor"])
     PROCESSOR_IDS = {
         "Form Parser": st.secrets["google"].get("form_parser_id"),
-        "Document OCR": st.secrets["google"].get("contract_processor")
+        "Document OCR": st.secrets["google"].get("contract_processor"),
+        "Custom Extractor": "1dc31710a97ca033",
     }
 
     processor_id = PROCESSOR_IDS.get(tipo_processor)
@@ -266,100 +260,69 @@ if pagina == "📄 Upload de Documentos":
 if pagina == "🔎 Visualização":
     st.header("🔎 Visualização das Tabelas Extraídas")
 
-    # Se houver tabelas extraídas automaticamente com Document AI
-    if "tabelas_extraidas" in st.session_state:
-        st.subheader("📦 Tabelas extraídas com Document AI")
-        tabelas_extraidas = st.session_state["tabelas_extraidas"]
-        tabelas_tratadas = defaultdict(list)
+    if "tabelas_extraidas" not in st.session_state:
+        st.warning("⚠️ Nenhuma tabela foi processada ainda. Vá para '📄 Upload de Documentos' e clique em 'Processar Documentos'.")
+        st.stop()
 
-        for tabela_info in tabelas_extraidas:
-            nome_doc = tabela_info["documento"]
-            df_raw = pd.DataFrame(tabela_info["tabela"])
+    tabelas_extraidas = st.session_state["tabelas_extraidas"]
+    tabelas_tratadas = defaultdict(list)
 
-            with st.spinner(f"🧠 Organizando tabelas de {nome_doc} com GPT..."):
-                try:
-                    df_tratada = organizar_tabela_com_gpt(nome_doc, df_raw)
-                    tabelas_tratadas[nome_doc].append(df_tratada)
-                except Exception as e:
-                    st.warning(f"Erro ao organizar tabela com GPT para o documento {nome_doc}: {e}")
+    for tabela_info in tabelas_extraidas:
+        nome_doc = tabela_info["documento"]
+        df_raw = tabela_info["tabela"]
 
-        st.session_state["tabelas_tratadas"] = tabelas_tratadas
+        # Verificação básica
+        if not isinstance(df_raw, pd.DataFrame):
+            st.warning(f"⚠️ O conteúdo extraído do documento `{nome_doc}` não é um DataFrame.")
+            continue
 
-        for nome_doc, lista_df in tabelas_tratadas.items():
-            try:
-                df_unificado = pd.concat(lista_df, ignore_index=True)
-                st.markdown(f"### 📄 Documento: <span style='color:green'><b>{nome_doc}</b></span>", unsafe_allow_html=True)
-                st.dataframe(df_unificado)
-            except Exception as e:
-                st.warning(f"⚠️ Erro ao unificar tabelas do documento `{nome_doc}`: {e}")
-    else:
-        st.info("ℹ️ Nenhuma tabela extraída com Document AI. Use uma das opções abaixo.")
+        if df_raw.empty:
+            st.warning(f"⚠️ Tabela vazia no documento `{nome_doc}`.")
+            continue
 
-    # 🔽 Escolha alternativa para estruturar boletim
-    st.subheader("📥 Escolha a origem para estruturar o boletim manualmente")
-
-    origem_boletim = st.selectbox(
-        "Como deseja estruturar os dados do boletim?",
-        options=[
-            "🔍 OCR automático via imagem da 1ª página",
-            "📝 Inserção manual do texto extraído"
+        # Padronização de colunas
+        colunas_padrao = [
+            'descricao', 'descricao_completa', 'unidade',
+            'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
+            'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
+            'total_standby', 'total_operacional', 'total_dobra',
+            'total_cobrado'
         ]
-    )
+        df_raw.columns = [col.lower().strip() for col in df_raw.columns]
 
-    # 🚀 Tratamento via OCR
-    if origem_boletim == "🔍 OCR automático via imagem da 1ª página":
-        st.subheader("📷 OCR da 1ª página do PDF")
+        # Garantir que todas as colunas padrão existam
+        for col in colunas_padrao:
+            if col not in df_raw.columns:
+                df_raw[col] = None
 
-        if "arquivo_boletim" not in st.session_state:
-            st.error("⚠️ Nenhum arquivo PDF foi armazenado. Faça o upload novamente na aba 📄 Upload.")
-            st.stop()
+        df_final = df_raw[colunas_padrao]
+        tabelas_tratadas[nome_doc].append(df_final)
 
+    # Salva no session state para conciliação posterior
+    st.session_state["tabelas_tratadas"] = tabelas_tratadas
+
+    # Exibe por documento
+    for nome_doc, lista_df in tabelas_tratadas.items():
         try:
-            # Carrega e processa a 1ª página
-            arquivo = st.session_state["arquivo_boletim"]
-            doc = fitz.open(stream=arquivo.read(), filetype="pdf")
-            page = doc.load_page(0)
-            pix = page.get_pixmap(dpi=300)
-            image_bytes = pix.tobytes("png")
-            image = Image.open(io.BytesIO(image_bytes))
-            st.image(image, caption="Página 1 do PDF (OCR)", use_column_width=True)
-
-            # Executa OCR
-            ocr_text = pytesseract.image_to_string(image, lang="por")  # ajuste o lang se necessário
-            st.text_area("📄 Texto extraído via OCR:", ocr_text, height=400, key="ocr_text_area")
-            st.session_state["texto_boletim_estruturado"] = ocr_text
-
+            df_unificado = pd.concat(lista_df, ignore_index=True)
+            st.markdown(f"### 📄 Documento: <span style='color:green'><b>{nome_doc}</b></span>", unsafe_allow_html=True)
+            st.dataframe(df_unificado)
         except Exception as e:
-            st.error(f"Erro ao executar OCR: {e}")
-
-    # ✍️ Inserção manual
-    elif origem_boletim == "📝 Inserção manual do texto extraído":
-        texto_manual = st.text_area("✍️ Cole aqui o texto da tabela extraído do PDF:", height=400, key="texto_manual_area")
-        st.session_state["texto_boletim_estruturado"] = texto_manual
-
-    # Mostra botão de próxima etapa
-    if "texto_boletim_estruturado" in st.session_state and st.session_state["texto_boletim_estruturado"].strip():
-        st.success("✅ Texto armazenado com sucesso! Pronto para estruturar.")
-    else:
-        st.info("ℹ️ Nenhum texto informado ainda.")
+            st.warning(f"⚠️ Erro ao exibir tabelas de `{nome_doc}`: {e}")
 
 if pagina == "⚖️ Conciliação":
     st.header("⚖️ Conciliação entre Boletins e Contrato")
 
-    if "df_contrato" not in st.session_state:
-        st.warning("⚠️ A base de contrato não está disponível. Volte para a aba '🔎 Visualização' para processar os dados.")
-        st.stop()
-    df_contrato = st.session_state["df_contrato"]
-
-    if "tabelas_tratadas" not in st.session_state:
-        st.warning("⚠️ Nenhum dado tratado disponível. Vá para '🔎 Visualização' primeiro.")
+    if "tabelas_tratadas" not in st.session_state or "df_contrato" not in st.session_state:
+        st.warning("⚠️ Dados não disponíveis. Vá para as abas anteriores e processe os documentos.")
         st.stop()
 
     tabelas_tratadas = st.session_state["tabelas_tratadas"]
+    df_contrato = st.session_state["df_contrato"]
     nomes_docs = list(tabelas_tratadas.keys())
 
     if not nomes_docs:
-        st.info("Nenhum documento disponível.")
+        st.info("Nenhum documento tratado disponível.")
         st.stop()
 
     doc_selecionado = st.selectbox("📄 Selecione o documento para conciliação:", nomes_docs)
@@ -371,7 +334,6 @@ if pagina == "⚖️ Conciliação":
         st.subheader(f"📋 Resultado da Conciliação: {doc_selecionado}")
         st.dataframe(df_conciliado)
 
-        # Filtros opcionais
         if st.checkbox("🔍 Mostrar apenas divergências"):
             df_filtrado = df_conciliado[
                 (df_conciliado["FLAG_VALOR_DIVERGENTE"] == "Sim") |
@@ -399,6 +361,8 @@ if pagina == "📤 Exportação":
 
     st.subheader("📥 Baixar Resultado em Excel")
 
+    nome_arquivo = st.text_input("📂 Nome do arquivo Excel", value="resultado_conciliacao.xlsx")
+
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
         df_export.to_excel(writer, sheet_name="Conciliação", index=False)
@@ -406,7 +370,8 @@ if pagina == "📤 Exportação":
 
     st.download_button(
         label="📤 Baixar Arquivo Excel",
-        data=buffer,
-        file_name="resultado_conciliacao.xlsx",
+        data=buffer.getvalue(),
+        file_name=nome_arquivo,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
