@@ -188,20 +188,32 @@ if pagina == "📄 Upload de Documentos":
     if st.button("🚀 Processar Documentos"):
         st.subheader("🔎 Extração com Document AI")
         tabelas_final = []
-
+    
         for arquivo in arquivos_boletim + arquivos_contrato:
             is_boletim = arquivo in arquivos_boletim
             nome_doc = arquivo.name
             inicio, fim = (
                 intervalos_boletim[nome_doc] if is_boletim else intervalos_contrato[nome_doc]
             )
-
+    
             with st.spinner(f"Processando {nome_doc}..."):
-                pdf_bytes = extrair_paginas_pdf(arquivo, inicio, fim)
-                tabelas = processar_documento_documentai(pdf_bytes, processor_id, nome_doc)
-                tabelas_final.extend(tabelas)
-
-        st.success("✅ Processamento concluído!")
+                try:
+                    file_bytes = arquivo.read()
+                    pdf_bytes = extrair_paginas_pdf(file_bytes, inicio, fim)
+    
+                    if pdf_bytes:
+                        tabelas = processar_documento_documentai(pdf_bytes, processor_id, nome_doc)
+                        tabelas_final.extend(tabelas)
+                    else:
+                        st.warning(f"⚠️ Não foi possível extrair as páginas de `{nome_doc}`.")
+                except Exception as e:
+                    st.error(f"❌ Falha ao processar `{nome_doc}`: {e}")
+    
+        if tabelas_final:
+            st.success("✅ Processamento concluído!")
+            st.session_state["tabelas_extraidas"] = tabelas_final
+        else:
+            st.warning("⚠️ Nenhuma tabela extraída com sucesso.")
 
         # Armazenar os resultados no session_state
         st.session_state["tabelas_extraidas"] = tabelas_final
