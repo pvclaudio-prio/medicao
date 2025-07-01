@@ -133,7 +133,7 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
 def organizar_tabela_com_gpt(nome_doc, df_raw):
     try:
         import openai
-        openai.api_key = st.secrets["openai"]["api_key"]
+        openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 
         # Converte o dataframe bruto em texto
         tabela_texto = df_raw.to_csv(index=False, sep=";")
