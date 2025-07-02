@@ -271,7 +271,6 @@ if pagina == "🔎 Visualização":
         nome_doc = tabela_info["documento"]
         df_raw = tabela_info["tabela"]
 
-        # Verificação básica
         if not isinstance(df_raw, pd.DataFrame):
             st.warning(f"⚠️ O conteúdo extraído do documento `{nome_doc}` não é um DataFrame.")
             continue
@@ -290,11 +289,15 @@ if pagina == "🔎 Visualização":
         ]
         df_raw.columns = [col.lower().strip() for col in df_raw.columns]
 
-        # Garantir que todas as colunas padrão existam
+        # Garante que todas as colunas padrão existam
         for col in colunas_padrao:
             if col not in df_raw.columns:
                 df_raw[col] = None
 
+        # Seleciona apenas colunas relevantes
+        df_final = df_raw[colunas_padrao].copy()
+
+        # Limpa valores monetários e converte para float
         colunas_monetarias = [
             'valor_unitario_standby',
             'valor_unitario_operacional',
@@ -304,7 +307,7 @@ if pagina == "🔎 Visualização":
             'total_dobra',
             'total_cobrado'
         ]
-        
+
         for col in colunas_monetarias:
             df_final[col] = (
                 df_final[col]
@@ -315,13 +318,10 @@ if pagina == "🔎 Visualização":
             )
             df_final[col] = pd.to_numeric(df_final[col], errors="coerce")
 
-        df_final = df_raw[colunas_padrao]
         tabelas_tratadas[nome_doc].append(df_final)
-    
-    # Salva no session state para conciliação posterior
+
     st.session_state["tabelas_tratadas"] = tabelas_tratadas
 
-    # Exibe por documento
     for nome_doc, lista_df in tabelas_tratadas.items():
         try:
             df_unificado = pd.concat(lista_df, ignore_index=True)
