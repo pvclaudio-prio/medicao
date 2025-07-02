@@ -361,6 +361,23 @@ if pagina == "⚖️ Conciliação":
         {"ID_ITEM": "3.1", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Pessoal", "UNIDADE": "Evento", "VALOR_UNITARIO": 1850.00, "VALOR_STANDBY": 1850.00},
         {"ID_ITEM": "3.2", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Equipamento", "UNIDADE": "Evento", "VALOR_UNITARIO": 3350.00, "VALOR_STANDBY": 3350.00},
     ])
+
+    df_contrato = df_contrato.rename(columns={
+        "ITEM_DESCRICAO": "descricao",
+        "DESCRICAO_COMPLETA": "descricao_completa",
+        "UNIDADE": "unidade",
+        "QTD_STANDBY": "qtd_standby",
+        "QTD_OPERACIONAL": "qtd_operacional",
+        "QTD_DOBRA": "qtd_dobra",
+        "QTD_TOTAL": "qtd_total",
+        "VALOR_UNITARIO_STANDBY": "valor_unitario_standby",
+        "VALOR_UNITARIO_OPERACIONAL": "valor_unitario_operacional",
+        "VALOR_UNITARIO_DOBRA": "valor_unitario_dobra",
+        "TOTAL_STANDBY": "total_standby",
+        "TOTAL_OPERACIONAL": "total_operacional",
+        "TOTAL_DOBRA": "total_dobra",
+        "TOTAL_COBRADO": "total_cobrado"
+    })
     
     st.session_state["df_contrato"] = df_contrato
 
