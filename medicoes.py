@@ -294,7 +294,7 @@ if pagina == "🔎 Visualização":
         for col in colunas_padrao:
             if col not in df_raw.columns:
                 df_raw[col] = None
-         === 🔍 Limpeza de valores monetários ===
+
         colunas_monetarias = [
             'valor_unitario_standby',
             'valor_unitario_operacional',
