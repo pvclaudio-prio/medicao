@@ -10,6 +10,7 @@ from collections import defaultdict
 import io
 from PIL import Image
 import pytesseract
+import re
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
