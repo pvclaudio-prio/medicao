@@ -168,6 +168,20 @@ Tabela extraída:
         st.error(f"Erro ao organizar tabela com GPT para o documento `{nome_doc}`: {e}")
         return df_raw
 
+def limpar_moeda(valor):
+    if not isinstance(valor, str):
+        valor = str(valor)
+    # Remove R$, espaços, caracteres não numéricos exceto ponto e vírgula
+    valor_limpo = re.sub(r"[^\d,\.]", "", valor)
+    if not valor_limpo:
+        return None
+    # Substitui vírgula decimal por ponto (padrão brasileiro para float)
+    valor_normalizado = valor_limpo.replace(",", ".")
+    try:
+        return float(valor_normalizado)
+    except:
+        return None
+        
 # === 📚 Menu lateral ===
 st.sidebar.title("📁 Navegação")
 pagina = st.sidebar.radio(
@@ -271,16 +285,16 @@ if pagina == "🔎 Visualização":
         nome_doc = tabela_info["documento"]
         df_raw = tabela_info["tabela"]
 
+        # Verificação básica
         if not isinstance(df_raw, pd.DataFrame):
             st.warning(f"⚠️ O conteúdo extraído do documento `{nome_doc}` não é um DataFrame.")
             continue
+
         if df_raw.empty:
             st.warning(f"⚠️ Tabela vazia no documento `{nome_doc}`.")
             continue
 
-        # Normalização de colunas
-        df_raw.columns = [col.lower().strip() for col in df_raw.columns]
-
+        # Padronização e verificação de colunas
         colunas_padrao = [
             'descricao', 'descricao_completa', 'unidade',
             'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
@@ -288,15 +302,15 @@ if pagina == "🔎 Visualização":
             'total_standby', 'total_operacional', 'total_dobra',
             'total_cobrado'
         ]
+        df_raw.columns = [col.lower().strip() for col in df_raw.columns]
 
-        # Garante existência das colunas
         for col in colunas_padrao:
             if col not in df_raw.columns:
                 df_raw[col] = None
 
-        df_final = df_raw[colunas_padrao].copy()
+        df_final = df_raw[colunas_padrao]
 
-        # Tratamento dos campos monetários
+        # Limpeza dos campos monetários
         colunas_monetarias = [
             'valor_unitario_standby',
             'valor_unitario_operacional',
@@ -306,28 +320,15 @@ if pagina == "🔎 Visualização":
             'total_dobra',
             'total_cobrado'
         ]
-
         for col in colunas_monetarias:
-            df_final[col] = (
-                df_final[col]
-                .astype(str)
-                .str.replace(r"[R$\s]", "", regex=True)  # remove R$ e espaços
-                .str.replace(",", ".")
-            )
-            df_final[col] = pd.to_numeric(df_final[col], errors="coerce")
-
-        # Conversão das quantidades para numérico
-        colunas_quantitativas = [
-            'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total'
-        ]
-        for col in colunas_quantitativas:
-            df_final[col] = pd.to_numeric(df_final[col], errors="coerce")
+            df_final[col] = df_final[col].apply(limpar_moeda)
 
         tabelas_tratadas[nome_doc].append(df_final)
 
+    # Salva no session state para conciliação posterior
     st.session_state["tabelas_tratadas"] = tabelas_tratadas
 
-    # Exibição por documento
+    # Exibição
     for nome_doc, lista_df in tabelas_tratadas.items():
         try:
             df_unificado = pd.concat(lista_df, ignore_index=True)
