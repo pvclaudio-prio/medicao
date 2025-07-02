@@ -98,7 +98,6 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     colunas_para_float = [
         'qtd_standby', 'qtd_operacional', 'qtd_dobra',
         'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
-        'valor_standby', 'valor_unitario',
         'total_standby', 'total_operacional', 'total_dobra',
         'total_cobrado'
     ]
