@@ -80,64 +80,63 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     
 def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.DataFrame) -> pd.DataFrame:
     df_boletim = df_boletim_raw.copy()
+    df_contrato = df_contrato.copy()
 
-    # Padroniza nome da coluna para merge
-    df_boletim['ITEM_DESCRICAO'] = df_boletim['descricao'].str.upper().str.strip()
-    df_contrato['DESCRICAO'] = df_contrato['DESCRICAO'].str.upper().str.strip()
+    # Padronização para merge
+    df_boletim["descricao_chave"] = df_boletim["descricao"].str.upper().str.strip()
+    df_contrato["descricao_chave"] = df_contrato["DESCRICAO"].str.upper().str.strip()
 
-    # Merge entre boletim e contrato
+    # Merge
     df_merged = df_boletim.merge(
         df_contrato,
-        left_on="ITEM_DESCRICAO",
-        right_on="DESCRICAO",
+        left_on="descricao_chave",
+        right_on="descricao_chave",
         how="left",
-        suffixes=('', '_CONTRATO')
+        suffixes=('', '_contrato')
     )
 
-    # Conversão segura para float de colunas numéricas
-    colunas_para_float = [
+    # Conversão segura
+    colunas_float = [
         'qtd_standby', 'qtd_operacional', 'qtd_dobra',
         'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
-        'total_standby', 'total_operacional', 'total_dobra',
-        'total_cobrado'
+        'total_standby', 'total_operacional', 'total_dobra', 'total_cobrado',
+        'VALOR_UNITARIO', 'VALOR_STANDBY'  # do contrato
     ]
-
-    for col in colunas_para_float:
+    for col in colunas_float:
         if col in df_merged.columns:
-            df_merged[col] = pd.to_numeric(df_merged[col], errors='coerce')
+            df_merged[col] = pd.to_numeric(df_merged[col], errors="coerce")
 
-    # Calcular total recalculado
-    def calcular_total(row):
-        return (
-            (row.get('qtd_standby', 0) or 0) * (row.get('valor_unitario_standby', 0) or 0) +
-            (row.get('qtd_operacional', 0) or 0) * (row.get('valor_unitario_operacional', 0) or 0) +
-            (row.get('qtd_dobra', 0) or 0) * (row.get('valor_unitario_dobra', 0) or 0)
-        )
-
-    df_merged['total_recalculado'] = df_merged.apply(calcular_total, axis=1)
+    # Total recalculado
+    df_merged["total_recalculado"] = (
+        (df_merged["qtd_standby"].fillna(0) * df_merged["valor_unitario_standby"].fillna(0)) +
+        (df_merged["qtd_operacional"].fillna(0) * df_merged["valor_unitario_operacional"].fillna(0)) +
+        (df_merged["qtd_dobra"].fillna(0) * df_merged["valor_unitario_dobra"].fillna(0))
+    )
 
     # Flags
-    df_merged['flag_valor_divergente'] = (
-        (np.round(df_merged['valor_unitario_standby'], 2) != np.round(df_merged['valor_standby'], 2)) |
-        (np.round(df_merged['valor_unitario_operacional'], 2) != np.round(df_merged['valor_unitario'], 2))
-    ).map({True: 'Sim', False: 'Não'})
+    df_merged["flag_valor_divergente"] = (
+        (np.round(df_merged["valor_unitario_standby"], 2) != np.round(df_merged["VALOR_STANDBY"], 2)) |
+        (np.round(df_merged["valor_unitario_operacional"], 2) != np.round(df_merged["VALOR_UNITARIO"], 2))
+    ).map({True: "Sim", False: "Não"})
 
-    df_merged['dif_total'] = abs((df_merged['total_recalculado'] - df_merged.get('total_cobrado', 0)).fillna(0))
-    df_merged['flag_total_recalculado_diferente'] = (df_merged['dif_total'] > 1.0).map({True: 'Sim', False: 'Não'})
+    df_merged["dif_total"] = abs((df_merged["total_recalculado"] - df_merged["total_cobrado"]).fillna(0))
+    df_merged["flag_total_recalculado_diferente"] = (df_merged["dif_total"] > 1).map({True: "Sim", False: "Não"})
 
-    df_merged['flag_descricao_duplicada'] = df_merged.duplicated(subset=['descricao_completa'], keep=False).map({True: 'Sim', False: 'Não'})
+    df_merged["flag_descricao_duplicada"] = df_merged.duplicated(subset=["descricao_completa"], keep=False).map({True: "Sim", False: "Não"})
 
-    # Seleção de colunas finais
-    colunas_finais = [col for col in [
+    # Colunas finais
+    colunas_finais = [
         'descricao', 'descricao_completa', 'unidade',
         'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
-        'valor_unitario_standby', 'valor_standby',
-        'valor_unitario_operacional', 'valor_unitario',
-        'total_standby', 'total_operacional', 'total_dobra', 'total_cobrado', 'total_recalculado',
+        'valor_unitario_standby', 'VALOR_STANDBY',
+        'valor_unitario_operacional', 'VALOR_UNITARIO',
+        'total_standby', 'total_operacional', 'total_dobra',
+        'total_cobrado', 'total_recalculado',
         'flag_valor_divergente', 'flag_total_recalculado_diferente', 'flag_descricao_duplicada'
-    ] if col in df_merged.columns]
+    ]
+    colunas_existentes = [col for col in colunas_finais if col in df_merged.columns]
 
-    return df_merged[colunas_finais]
+    return df_merged[colunas_existentes]
 
 def organizar_tabela_com_gpt(nome_doc, df_raw):
     try:
