@@ -298,6 +298,9 @@ if pagina == "🔎 Visualização":
         df_final = df_raw[colunas_padrao]
         tabelas_tratadas[nome_doc].append(df_final)
 
+    tabelas_tradatas['valor_unitario_standby'] = tabelas_tradatas['valor_unitario_standby'].str.replace('R$', '').str.strip()
+    tabelas_tradatas['valor_unitario_standby'] = tabelas_tradatas['valor_unitario_standby'].astype(float)
+    
     # Salva no session state para conciliação posterior
     st.session_state["tabelas_tratadas"] = tabelas_tratadas
 
