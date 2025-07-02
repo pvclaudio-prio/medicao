@@ -83,8 +83,8 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     df_contrato = df_contrato.copy()
 
     # Padronização para merge
-    df_boletim["descricao_chave"] = df_boletim["descricao"].str.upper().str.strip()
-    df_contrato["descricao_chave"] = df_contrato["DESCRICAO"].str.upper().str.strip()
+    df_boletim["descricao_chave"] = df_boletim["unidade"].str.upper().str.strip()
+    df_contrato["descricao_chave"] = df_contrato["unidade"].str.upper().str.strip()
 
     # Merge
     df_merged = df_boletim.merge(
@@ -375,8 +375,8 @@ if pagina == "⚖️ Conciliação":
     ])
 
     df_contrato = df_contrato.rename(columns={
-        "ITEM_DESCRICAO": "descricao",
-        "DESCRICAO_COMPLETA": "descricao_completa",
+        "REFERENCIA": "descricao",
+        "DESCRICAO": "descricao_completa",
         "UNIDADE": "unidade",
         "QTD_STANDBY": "qtd_standby",
         "QTD_OPERACIONAL": "qtd_operacional",
