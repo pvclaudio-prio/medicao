@@ -90,7 +90,7 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
         df_boletim["descricao"].str.strip().str.upper() + " - " + df_boletim["unidade"].str.strip().str.upper()
     )
     df_contrato["chave_conciliacao"] = (
-        df_contrato["descricao"].str.strip().str.upper() + " - " + df_contrato["unidade"].str.strip().str.upper()
+        df_contrato["descricao_completa"].str.strip().str.upper() + " - " + df_contrato["unidade"].str.strip().str.upper()
     )
 
     # 🔹 Merge entre boletim e contrato pela chave
