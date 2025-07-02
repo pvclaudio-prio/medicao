@@ -297,26 +297,7 @@ if pagina == "🔎 Visualização":
         # Seleciona apenas colunas relevantes
         df_final = df_raw[colunas_padrao].copy()
 
-        # Limpa valores monetários e converte para float
-        colunas_monetarias = [
-            'valor_unitario_standby',
-            'valor_unitario_operacional',
-            'valor_unitario_dobra',
-            'total_standby',
-            'total_operacional',
-            'total_dobra',
-            'total_cobrado'
-        ]
 
-        for col in colunas_monetarias:
-            df_final[col] = (
-                df_final[col]
-                .astype(str)
-                .str.replace("R\$", "", regex=True)
-                .str.replace(",", ".")
-                .str.strip()
-            )
-            df_final[col] = pd.to_numeric(df_final[col], errors="coerce")
 
         tabelas_tratadas[nome_doc].append(df_final)
 
