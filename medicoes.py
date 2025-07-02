@@ -416,9 +416,9 @@ if pagina == "⚖️ Conciliação":
 
         if st.checkbox("🔍 Mostrar apenas divergências"):
             df_filtrado = df_conciliado[
-                (df_conciliado["FLAG_VALOR_DIVERGENTE"] == "Sim") |
-                (df_conciliado["FLAG_TOTAL_RECALCULADO_DIFERENTE"] == "Sim") |
-                (df_conciliado["FLAG_DESCRICAO_DUPLICADA"] == "Sim")
+                (df_conciliado["flag_valor_divergente"] == "Sim") |
+                (df_conciliado["flag_total_recalculado_diferente"] == "Sim") |
+                (df_conciliado["flag_descricao_duplicada"] == "Sim")
             ]
             st.dataframe(df_filtrado)
 
