@@ -169,15 +169,17 @@ Tabela extraída:
         return df_raw
 
 def limpar_moeda(valor):
-    if not isinstance(valor, str):
-        valor = str(valor)
-    # Remove R$, espaços, caracteres não numéricos exceto ponto e vírgula
-    valor_limpo = re.sub(r"[^\d,\.]", "", valor)
-    if not valor_limpo:
-        return None
-    # Substitui vírgula decimal por ponto (padrão brasileiro para float)
-    valor_normalizado = valor_limpo.replace(",", ".")
     try:
+        if pd.isna(valor):
+            return None
+        if isinstance(valor, (int, float)):
+            return float(valor)
+        if not isinstance(valor, str):
+            valor = str(valor)
+
+        # Remove R$, espaços, pontos de milhar e troca vírgula por ponto decimal
+        valor_limpo = re.sub(r"[^\d,\.]", "", valor)
+        valor_normalizado = valor_limpo.replace(",", ".")
         return float(valor_normalizado)
     except:
         return None
