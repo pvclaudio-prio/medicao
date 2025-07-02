@@ -82,31 +82,30 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     df_boletim = df_boletim_raw.copy()
     df_contrato = df_contrato.copy()
 
-    # Padronização para merge
-    df_boletim["descricao_chave"] = df_boletim["unidade"].str.upper().str.strip()
-    df_contrato["descricao_chave"] = df_contrato["unidade"].str.upper().str.strip()
+    # Criar chave de conciliação com base apenas na UNIDADE
+    df_boletim["chave_conciliacao"] = df_boletim["unidade"].str.upper().str.strip()
+    df_contrato["chave_conciliacao"] = df_contrato["unidade"].str.upper().str.strip()
 
-    # Merge
+    # Merge usando a chave de UNIDADE
     df_merged = df_boletim.merge(
         df_contrato,
-        left_on="descricao_chave",
-        right_on="descricao_chave",
+        on="chave_conciliacao",
         how="left",
         suffixes=('', '_contrato')
     )
 
-    # Conversão segura
+    # Conversão segura para float
     colunas_float = [
         'qtd_standby', 'qtd_operacional', 'qtd_dobra',
         'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
         'total_standby', 'total_operacional', 'total_dobra', 'total_cobrado',
-        'VALOR_UNITARIO', 'VALOR_STANDBY'  # do contrato
+        'VALOR_UNITARIO', 'VALOR_STANDBY'
     ]
     for col in colunas_float:
         if col in df_merged.columns:
             df_merged[col] = pd.to_numeric(df_merged[col], errors="coerce")
 
-    # Total recalculado
+    # Cálculo do total recalculado
     df_merged["total_recalculado"] = (
         (df_merged["qtd_standby"].fillna(0) * df_merged["valor_unitario_standby"].fillna(0)) +
         (df_merged["qtd_operacional"].fillna(0) * df_merged["valor_unitario_operacional"].fillna(0)) +
@@ -124,7 +123,7 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
 
     df_merged["flag_descricao_duplicada"] = df_merged.duplicated(subset=["descricao_completa"], keep=False).map({True: "Sim", False: "Não"})
 
-    # Colunas finais
+    # Seleção de colunas finais
     colunas_finais = [
         'descricao', 'descricao_completa', 'unidade',
         'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
