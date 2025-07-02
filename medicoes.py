@@ -83,7 +83,7 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     df_contrato = df_contrato.copy()
 
     # 🔹 Remover registros irrelevantes do boletim
-    df_boletim = df_boletim[~df_boletim["descricao"].str.upper().str.strip().eq("DIÁRIA (EQUIPAMENTO)")]
+    df_boletim = df_boletim[~df_boletim["descricao"].str.upper().str.strip().eq(["DIÁRIA (EQUIPAMENTO)","PRODUTO QUÍMICO"])]
 
     # 🔹 Criar chave de conciliação (descricao + unidade), padronizado em caixa alta e removendo espaços
     df_boletim["chave_conciliacao"] = (
