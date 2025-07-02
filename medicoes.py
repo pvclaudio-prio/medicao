@@ -168,18 +168,23 @@ Tabela extraída:
         st.error(f"Erro ao organizar tabela com GPT para o documento `{nome_doc}`: {e}")
         return df_raw
 
-def limpar_moeda(serie):
-    return (
-        serie.astype(str)
-        .str.upper()
-        .str.replace("R\\$", "", regex=True)
-        .str.replace("RS", "", regex=False)
-        .str.replace(" ", "")
-        .str.replace(",", ".")
-        .str.extract(r"([\d\.]+)", expand=False)  # Extrai só número com ponto
-        .astype(float)
-    )
+def limpar_moeda(valor):
+    if pd.isna(valor):
+        return None
+    valor = str(valor).upper()
+    valor = re.sub(r"[^\d,\.]", "", valor)  # remove letras e símbolos
+    valor = valor.replace(",", ".")
 
+    # Se houver mais de um ponto, assume que o último é o separador decimal
+    partes = valor.split(".")
+    if len(partes) > 2:
+        valor = "".join(partes[:-1]) + "." + partes[-1]
+
+    try:
+        return float(valor)
+    except:
+        return None
+        
 # === 📚 Menu lateral ===
 st.sidebar.title("📁 Navegação")
 pagina = st.sidebar.radio(
@@ -324,7 +329,7 @@ if pagina == "🔎 Visualização":
         for col in colunas_monetarias:
             if col in df_final.columns:
                 try:
-                    df_final[col] = limpar_moeda(df_final[col])
+                    df_final[col] = df_final[col].apply(limpar_moeda)
                 except Exception as e:
                     st.warning(f"Erro ao limpar coluna {col}: {e}")
 
