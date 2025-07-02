@@ -294,12 +294,29 @@ if pagina == "🔎 Visualização":
         for col in colunas_padrao:
             if col not in df_raw.columns:
                 df_raw[col] = None
+         === 🔍 Limpeza de valores monetários ===
+        colunas_monetarias = [
+            'valor_unitario_standby',
+            'valor_unitario_operacional',
+            'valor_unitario_dobra',
+            'total_standby',
+            'total_operacional',
+            'total_dobra',
+            'total_cobrado'
+        ]
+        
+        for col in colunas_monetarias:
+            df_final[col] = (
+                df_final[col]
+                .astype(str)
+                .str.replace("R\$", "", regex=True)
+                .str.replace(",", ".")
+                .str.strip()
+            )
+            df_final[col] = pd.to_numeric(df_final[col], errors="coerce")
 
         df_final = df_raw[colunas_padrao]
         tabelas_tratadas[nome_doc].append(df_final)
-
-        tabelas_tratadas['valor_unitario_standby'] = tabelas_tratadas['valor_unitario_standby'].str.replace('R$', '').str.strip()
-        tabelas_tratadas['valor_unitario_standby'] = tabelas_tratadas['valor_unitario_standby'].astype(float)
     
     # Salva no session state para conciliação posterior
     st.session_state["tabelas_tratadas"] = tabelas_tratadas
