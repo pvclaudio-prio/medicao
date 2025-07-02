@@ -283,7 +283,7 @@ if pagina == "🔎 Visualização":
         st.stop()
 
     tabelas_extraidas = st.session_state["tabelas_extraidas"]
-    tabelas_tratadas = defaultdict(list)
+    tabelas_tratadas = {}
 
     for tabela_info in tabelas_extraidas:
         nome_doc = tabela_info["documento"]
@@ -331,7 +331,10 @@ if pagina == "🔎 Visualização":
                     df_final[col] = df_final[col].apply(limpar_moeda)
                 except Exception as e:
                     st.warning(f"Erro ao limpar coluna {col}: {e}")
-
+     
+        if nome_doc not in tabelas_tratadas:
+            tabelas_tratadas[nome_doc] = []
+        
         tabelas_tratadas[nome_doc].append(df_final)
 
     # Salva no session state para conciliação posterior
