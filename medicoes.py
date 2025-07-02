@@ -324,7 +324,7 @@ if pagina == "🔎 Visualização":
         for col in colunas_monetarias:
             if col in df_final.columns:
                 try:
-                    df_final[col] = limpar_moeda_simples(df_final[col])
+                    df_final[col] = limpar_moeda(df_final[col])
                 except Exception as e:
                     st.warning(f"Erro ao limpar coluna {col}: {e}")
 
