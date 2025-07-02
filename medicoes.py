@@ -170,27 +170,24 @@ Tabela extraída:
 
 def limpar_moeda(valor):
     try:
-        # Ignora valores claramente nulos ou já numéricos válidos
         if pd.isna(valor):
             return None
         if isinstance(valor, (int, float)):
             return float(valor)
 
-        # Converte qualquer outro tipo para string e normaliza
-        valor = str(valor).strip().upper()
+        valor = str(valor).upper().strip()
+        valor = re.sub(r"[^\d,\.]", "", valor)
 
-        # Remove prefixos/sufixos como "R$", "RS", espaços, etc
-        valor_limpo = re.sub(r"[^\d,\.]", "", valor)
+        # Corrige casos como 1.337,60 ou 1,337.60
+        if "," in valor and "." in valor:
+            if valor.rfind(",") > valor.rfind("."):
+                valor = valor.replace(".", "").replace(",", ".")
+            else:
+                valor = valor.replace(",", "")
+        else:
+            valor = valor.replace(",", ".")
 
-        # Substitui vírgula por ponto (caso decimal)
-        if valor_limpo.count(",") == 1 and valor_limpo.count(".") == 1:
-            valor_limpo = valor_limpo.replace(".", "").replace(",", ".")
-        elif valor_limpo.count(",") == 1:
-            valor_limpo = valor_limpo.replace(",", ".")
-        elif valor_limpo.count(".") > 1:
-            valor_limpo = valor_limpo.replace(".", "")
-
-        return float(valor_limpo)
+        return float(valor)
     except:
         return None
         
@@ -336,7 +333,8 @@ if pagina == "🔎 Visualização":
         st.write(df_raw[['valor_unitario_standby', 'valor_unitario_operacional', 'total_operacional']].head(10))
 
         for col in colunas_monetarias:
-            df_final[col] = df_final[col].apply(limpar_moeda)
+            if col in df_final.columns:
+                df_final[col] = df_final[col].apply(limpar_moeda)
 
         tabelas_tratadas[nome_doc].append(df_final)
 
