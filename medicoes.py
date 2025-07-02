@@ -169,35 +169,28 @@ Tabela extraída:
         return df_raw
 
 def limpar_moeda(valor):
-    if pd.isna(valor) or not isinstance(valor, str):
+    if pd.isna(valor):
         return None
 
-    # Remove espaços e converte para string
-    valor = valor.strip().upper()
+    # Converte para string e normaliza
+    valor = str(valor).strip().upper()
 
-    # Remove qualquer símbolo que não seja número, vírgula ou ponto
+    # Remove todos os caracteres que não são dígitos, vírgula ou ponto
     valor_limpo = re.sub(r"[^\d,\.]", "", valor)
 
-    # Casos especiais com vírgula e ponto misturados (R$ 1.337.60 ou R$ 1,337.60)
+    # Trata casos com vírgula e ponto (R$ 1.337,60 → 1337.60)
     if valor_limpo.count(",") == 1 and valor_limpo.count(".") == 1:
-        # Assume que o ponto é separador de milhar e vírgula é decimal
         valor_limpo = valor_limpo.replace(".", "").replace(",", ".")
-
-    elif valor_limpo.count(",") == 1 and valor_limpo.count(".") == 0:
-        # Caso 1.337,60 → vira 1337.60
+    elif valor_limpo.count(",") == 1:
         valor_limpo = valor_limpo.replace(",", ".")
-
-    elif valor_limpo.count(".") == 1 and valor_limpo.count(",") == 0:
-        # Ex: 403.75 → mantido
-        pass
-
-    else:
-        # Qualquer outro formato estranho
-        return None
+    elif valor_limpo.count(".") > 1:
+        # Assume todos os pontos como separador de milhar
+        valor_limpo = valor_limpo.replace(".", "")
+    # Se estiver apenas como número, segue
 
     try:
         return float(valor_limpo)
-    except ValueError:
+    except:
         return None
         
 # === 📚 Menu lateral ===
