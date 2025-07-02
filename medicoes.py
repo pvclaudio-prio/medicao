@@ -105,7 +105,7 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     colunas_float = [
         'qtd_standby', 'qtd_operacional', 'qtd_dobra',
         'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
-        'total_standby', 'total_operacional', 'total_dobra', 'total_cobrado',
+        'total_standby', 'total_operacional', 'total_dobra', 'total_he','total_cobrado',
         'valor_unitario', 'valor_standby'
     ]
     for col in colunas_float:
@@ -116,7 +116,8 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     df_merged["total_recalculado"] = (
         (df_merged["qtd_total"].fillna(0) * df_merged["valor_unitario_standby"].fillna(0)) +
         (df_merged["qtd_total"].fillna(0) * df_merged["valor_unitario_operacional"].fillna(0)) +
-        (df_merged["qtd_dobra"].fillna(0) * df_merged["valor_unitario_dobra"].fillna(0))
+        (df_merged["qtd_dobra"].fillna(0) * df_merged["valor_unitario_dobra"].fillna(0)) +
+        df_merged["total_he"].fillna(0)
     )
 
     # 🔹 Flags de divergência
@@ -136,7 +137,7 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
         'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
         'valor_unitario_standby', 'valor_standby',
         'valor_unitario_operacional', 'valor_unitario',
-        'total_standby', 'total_operacional', 'total_dobra',
+        'total_standby', 'total_operacional', 'total_dobra', 'total_he',
         'total_cobrado', 'total_recalculado',
         'flag_valor_divergente', 'flag_total_recalculado_diferente', 'flag_descricao_duplicada'
     ]
@@ -321,7 +322,7 @@ if pagina == "🔎 Visualização":
             'descricao', 'descricao_completa', 'unidade',
             'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
             'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
-            'total_standby', 'total_operacional', 'total_dobra',
+            'total_standby', 'total_operacional', 'total_dobra', 'total_he',
             'total_cobrado'
         ]
         df_raw.columns = [col.lower().strip() for col in df_raw.columns]
@@ -340,6 +341,7 @@ if pagina == "🔎 Visualização":
             'total_standby',
             'total_operacional',
             'total_dobra',
+            'total_he',
             'total_cobrado'
         ]
 
