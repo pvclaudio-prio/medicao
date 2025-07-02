@@ -80,48 +80,54 @@ def processar_documento_documentai(pdf_bytes, processor_id, nome_doc):
     
 def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.DataFrame) -> pd.DataFrame:
     df_boletim = df_boletim_raw.copy()
-    df_boletim['ITEM_DESCRICAO'] = df_boletim['ITEM_DESCRICAO'].str.upper().str.strip()
-    df_contrato['DESCRICAO'] = df_contrato['DESCRICAO'].str.upper().str.strip()
 
+    # Garantir nomes padronizados
+    df_boletim.columns = [col.lower().strip() for col in df_boletim.columns]
+    df_contrato.columns = [col.lower().strip() for col in df_contrato.columns]
+
+    # Padronizar textos
+    df_boletim['descricao'] = df_boletim['descricao'].astype(str).str.upper().str.strip()
+    df_contrato['descricao'] = df_contrato['descricao'].astype(str).str.upper().str.strip()
+
+    # Merge
     df_merged = df_boletim.merge(
         df_contrato,
-        left_on="ITEM_DESCRICAO",
-        right_on="DESCRICAO",
+        left_on="descricao",
+        right_on="descricao",
         how="left",
-        suffixes=('', '_CONTRATO')
+        suffixes=('', '_contrato')
     )
 
-    # Calcular totais por linha
+    # Calcular total por linha
     def calcular_total(row):
         return (
-            (row.get('QTD_STANDBY', 0) or 0) * (row.get('VALOR_UNITARIO_STANDBY', 0) or 0) +
-            (row.get('QTD_OPERACIONAL', 0) or 0) * (row.get('VALOR_UNITARIO_OPERACIONAL', 0) or 0) +
-            (row.get('QTD_DOBRA', 0) or 0) * (row.get('VALOR_UNITARIO_DOBRA', 0) or 0)
+            (row.get('qtd_standby', 0) or 0) * (row.get('valor_unitario_standby', 0) or 0) +
+            (row.get('qtd_operacional', 0) or 0) * (row.get('valor_unitario_operacional', 0) or 0) +
+            (row.get('qtd_dobra', 0) or 0) * (row.get('valor_unitario_dobra', 0) or 0)
         )
 
-    df_merged['TOTAL_RECALCULADO'] = df_merged.apply(calcular_total, axis=1)
+    df_merged['total_recalculado'] = df_merged.apply(calcular_total, axis=1)
 
-    # Flag de valores unitários divergentes
-    df_merged['FLAG_VALOR_DIVERGENTE'] = (
-        (np.round(df_merged['VALOR_UNITARIO_STANDBY'], 2) != np.round(df_merged['VALOR_STANDBY'], 2)) |
-        (np.round(df_merged['VALOR_UNITARIO_OPERACIONAL'], 2) != np.round(df_merged['VALOR_UNITARIO'], 2))
+    # Flags de divergência
+    df_merged['flag_valor_divergente'] = (
+        (np.round(df_merged['valor_unitario_standby'], 2) != np.round(df_merged.get('valor_standby', 0), 2)) |
+        (np.round(df_merged['valor_unitario_operacional'], 2) != np.round(df_merged.get('valor_unitario', 0), 2))
     ).map({True: 'Sim', False: 'Não'})
 
-    # Flag de total recalculado diferente
-    df_merged['DIF_TOTAL'] = abs(df_merged['TOTAL_RECALCULADO'] - df_merged.get('TOTAL_COBRADO', 0))
-    df_merged['FLAG_TOTAL_RECALCULADO_DIFERENTE'] = (df_merged['DIF_TOTAL'] > 1.0).map({True: 'Sim', False: 'Não'})
+    df_merged['dif_total'] = abs(df_merged['total_recalculado'] - df_merged.get('total_cobrado', 0))
+    df_merged['flag_total_recalculado_diferente'] = (df_merged['dif_total'] > 1.0).map({True: 'Sim', False: 'Não'})
 
-    # Flag de duplicidade de descrição
-    df_merged['FLAG_DESCRICAO_DUPLICADA'] = df_merged.duplicated(subset=['DESCRICAO_COMPLETA'], keep=False).map({True: 'Sim', False: 'Não'})
+    df_merged['flag_descricao_duplicada'] = df_merged.duplicated(subset=['descricao_completa'], keep=False).map({True: 'Sim', False: 'Não'})
 
-    # Seleção de colunas finais (proteção se não existir)
+    # Selecionar colunas finais
     colunas_finais = [col for col in [
-        'ITEM_DESCRICAO', 'DESCRICAO_COMPLETA', 'UNIDADE',
-        'QTD_STANDBY', 'QTD_OPERACIONAL', 'QTD_DOBRA', 'QTD_TOTAL',
-        'VALOR_UNITARIO_STANDBY', 'VALOR_STANDBY',
-        'VALOR_UNITARIO_OPERACIONAL', 'VALOR_UNITARIO',
-        'TOTAL_STANDBY', 'TOTAL_OPERACIONAL', 'TOTAL_DOBRA', 'TOTAL_COBRADO', 'TOTAL_RECALCULADO',
-        'FLAG_VALOR_DIVERGENTE', 'FLAG_TOTAL_RECALCULADO_DIFERENTE', 'FLAG_DESCRICAO_DUPLICADA'
+        'descricao', 'descricao_completa', 'unidade',
+        'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
+        'valor_unitario_standby', 'valor_standby',
+        'valor_unitario_operacional', 'valor_unitario',
+        'total_standby', 'total_operacional', 'total_dobra',
+        'total_cobrado', 'total_recalculado',
+        'flag_valor_divergente', 'flag_total_recalculado_diferente', 'flag_descricao_duplicada'
     ] if col in df_merged.columns]
 
     return df_merged[colunas_finais]
