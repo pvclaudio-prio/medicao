@@ -103,7 +103,7 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
 
     # 🔹 Conversão segura para float
     colunas_float = [
-        'qtd_standby', 'qtd_operacional', 'qtd_dobra',
+        'qtd_standby', 'qtd_operacional', 'qtd_dobra','qtd_total',
         'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
         'total_standby', 'total_operacional', 'total_dobra', 'total_he','total_cobrado',
         'valor_unitario', 'valor_standby'
@@ -116,7 +116,8 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     df_merged["total_recalculado"] = (
         (df_merged["qtd_total"].fillna(0) * df_merged["valor_unitario_standby"].fillna(0)) +
         (df_merged["qtd_total"].fillna(0) * df_merged["valor_unitario_operacional"].fillna(0)) +
-        (df_merged["qtd_dobra"].fillna(0) * df_merged["valor_unitario_dobra"].fillna(0)) 
+        (df_merged["qtd_dobra"].fillna(0) * df_merged["valor_unitario_dobra"].fillna(0)) +
+        df_merged["total_he"].fillna(0)
     )
 
     # 🔹 Flags de divergência
