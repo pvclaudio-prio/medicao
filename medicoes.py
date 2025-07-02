@@ -322,6 +322,9 @@ if pagina == "🔎 Visualização":
             'total_dobra',
             'total_cobrado'
         ]
+        st.write("Pré-limpeza (amostra):")
+        st.write(df_raw[['valor_unitario_standby', 'valor_unitario_operacional', 'total_operacional']].head(10))
+
         for col in colunas_monetarias:
             df_final[col] = df_final[col].apply(limpar_moeda)
 
