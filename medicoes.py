@@ -82,11 +82,18 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
     df_boletim = df_boletim_raw.copy()
     df_contrato = df_contrato.copy()
 
-    # Criar chave de conciliação com base apenas na UNIDADE
-    df_boletim["chave_conciliacao"] = df_boletim["unidade"].str.upper().str.strip()
-    df_contrato["chave_conciliacao"] = df_contrato["unidade"].str.upper().str.strip()
+    # 🔹 Remover registros irrelevantes do boletim
+    df_boletim = df_boletim[~df_boletim["descricao"].str.upper().str.strip().eq("DIÁRIA (EQUIPAMENTO)")]
 
-    # Merge usando a chave de UNIDADE
+    # 🔹 Criar chave de conciliação (descricao + unidade), padronizado em caixa alta e removendo espaços
+    df_boletim["chave_conciliacao"] = (
+        df_boletim["descricao"].str.strip().str.upper() + " - " + df_boletim["unidade"].str.strip().str.upper()
+    )
+    df_contrato["chave_conciliacao"] = (
+        df_contrato["descricao"].str.strip().str.upper() + " - " + df_contrato["unidade"].str.strip().str.upper()
+    )
+
+    # 🔹 Merge entre boletim e contrato pela chave
     df_merged = df_boletim.merge(
         df_contrato,
         on="chave_conciliacao",
@@ -94,28 +101,28 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
         suffixes=('', '_contrato')
     )
 
-    # Conversão segura para float
+    # 🔹 Conversão segura para float
     colunas_float = [
         'qtd_standby', 'qtd_operacional', 'qtd_dobra',
         'valor_unitario_standby', 'valor_unitario_operacional', 'valor_unitario_dobra',
         'total_standby', 'total_operacional', 'total_dobra', 'total_cobrado',
-        'VALOR_UNITARIO', 'VALOR_STANDBY'
+        'valor_unitario', 'valor_standby'
     ]
     for col in colunas_float:
         if col in df_merged.columns:
             df_merged[col] = pd.to_numeric(df_merged[col], errors="coerce")
 
-    # Cálculo do total recalculado
+    # 🔹 Cálculo do total recalculado
     df_merged["total_recalculado"] = (
         (df_merged["qtd_standby"].fillna(0) * df_merged["valor_unitario_standby"].fillna(0)) +
         (df_merged["qtd_operacional"].fillna(0) * df_merged["valor_unitario_operacional"].fillna(0)) +
         (df_merged["qtd_dobra"].fillna(0) * df_merged["valor_unitario_dobra"].fillna(0))
     )
 
-    # Flags
+    # 🔹 Flags de divergência
     df_merged["flag_valor_divergente"] = (
-        (np.round(df_merged["valor_unitario_standby"], 2) != np.round(df_merged["VALOR_STANDBY"], 2)) |
-        (np.round(df_merged["valor_unitario_operacional"], 2) != np.round(df_merged["VALOR_UNITARIO"], 2))
+        (np.round(df_merged["valor_unitario_standby"], 2) != np.round(df_merged["valor_standby"], 2)) |
+        (np.round(df_merged["valor_unitario_operacional"], 2) != np.round(df_merged["valor_unitario"], 2))
     ).map({True: "Sim", False: "Não"})
 
     df_merged["dif_total"] = abs((df_merged["total_recalculado"] - df_merged["total_cobrado"]).fillna(0))
@@ -123,12 +130,12 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
 
     df_merged["flag_descricao_duplicada"] = df_merged.duplicated(subset=["descricao_completa"], keep=False).map({True: "Sim", False: "Não"})
 
-    # Seleção de colunas finais
+    # 🔹 Seleção de colunas finais
     colunas_finais = [
         'descricao', 'descricao_completa', 'unidade',
         'qtd_standby', 'qtd_operacional', 'qtd_dobra', 'qtd_total',
-        'valor_unitario_standby', 'VALOR_STANDBY',
-        'valor_unitario_operacional', 'VALOR_UNITARIO',
+        'valor_unitario_standby', 'valor_standby',
+        'valor_unitario_operacional', 'valor_unitario',
         'total_standby', 'total_operacional', 'total_dobra',
         'total_cobrado', 'total_recalculado',
         'flag_valor_divergente', 'flag_total_recalculado_diferente', 'flag_descricao_duplicada'
@@ -364,13 +371,13 @@ if pagina == "⚖️ Conciliação":
     st.header("⚖️ Conciliação entre Boletins e Contrato")
 
     df_contrato = pd.DataFrame([
-        {"ID_ITEM": "1.1", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "Operador Técnico", "UNIDADE": "Diária", "VALOR_UNITARIO": 1672.00, "VALOR_STANDBY": 1337.60},
-        {"ID_ITEM": "1.2", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "Técnico Especializado (Supervisor)", "UNIDADE": "Diária", "VALOR_UNITARIO": 1995.00, "VALOR_STANDBY": 1596.00},
-        {"ID_ITEM": "2.1", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Flanges Kit", "UNIDADE": "Diária", "VALOR_UNITARIO": 475.00, "VALOR_STANDBY": 403.75},
-        {"ID_ITEM": "2.2", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Chemical Cleaning Equipment (EX)", "UNIDADE": "Diária", "VALOR_UNITARIO": 807.50, "VALOR_STANDBY": 686.38},
-        {"ID_ITEM": "2.3", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Hydrojetting Equipment", "UNIDADE": "Diária", "VALOR_UNITARIO": 1795.50, "VALOR_STANDBY": 1526.18},
-        {"ID_ITEM": "3.1", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Pessoal", "UNIDADE": "Evento", "VALOR_UNITARIO": 1850.00, "VALOR_STANDBY": 1850.00},
-        {"ID_ITEM": "3.2", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Equipamento", "UNIDADE": "Evento", "VALOR_UNITARIO": 3350.00, "VALOR_STANDBY": 3350.00},
+        {"ID_ITEM": "1.1", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "DIÁRIA DE OPERADOR TÉCNICO", "UNIDADE": "DIÁRIA", "VALOR_UNITARIO": 1672.00, "VALOR_STANDBY": 1337.60},
+        {"ID_ITEM": "1.2", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "DIÁRIA DE SUPERVISOR", "UNIDADE": "DIÁRIA", "VALOR_UNITARIO": 1995.00, "VALOR_STANDBY": 1596.00},
+        {"ID_ITEM": "2.1", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "DIÁRIA (EQUIPAMENTO)", "UNIDADE": "DIÁRIA", "VALOR_UNITARIO": 475.00, "VALOR_STANDBY": 403.75},
+        {"ID_ITEM": "2.2", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "DIÁRIA (EQUIPAMENTO)", "UNIDADE": "DIÁRIA", "VALOR_UNITARIO": 807.50, "VALOR_STANDBY": 686.38},
+        {"ID_ITEM": "2.3", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "DIÁRIA (EQUIPAMENTO)", "UNIDADE": "DIÁRIA", "VALOR_UNITARIO": 1795.50, "VALOR_STANDBY": 1526.18},
+        {"ID_ITEM": "3.1", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "MOBILIZAÇÃO", "UNIDADE": "EVENTO", "VALOR_UNITARIO": 1850.00, "VALOR_STANDBY": 1850.00},
+        {"ID_ITEM": "3.2", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "MOBILIZAÇÃO DE EQUIPAMENTO", "UNIDADE": "EVENTO", "VALOR_UNITARIO": 3350.00, "VALOR_STANDBY": 3350.00},
     ])
 
     df_contrato = df_contrato.rename(columns={
