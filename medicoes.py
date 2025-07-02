@@ -352,6 +352,18 @@ if pagina == "🔎 Visualização":
 if pagina == "⚖️ Conciliação":
     st.header("⚖️ Conciliação entre Boletins e Contrato")
 
+    df_contrato = pd.DataFrame([
+        {"ID_ITEM": "1.1", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "Operador Técnico", "UNIDADE": "Diária", "VALOR_UNITARIO": 1672.00, "VALOR_STANDBY": 1337.60},
+        {"ID_ITEM": "1.2", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "Técnico Especializado (Supervisor)", "UNIDADE": "Diária", "VALOR_UNITARIO": 1995.00, "VALOR_STANDBY": 1596.00},
+        {"ID_ITEM": "2.1", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Flanges Kit", "UNIDADE": "Diária", "VALOR_UNITARIO": 475.00, "VALOR_STANDBY": 403.75},
+        {"ID_ITEM": "2.2", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Chemical Cleaning Equipment (EX)", "UNIDADE": "Diária", "VALOR_UNITARIO": 807.50, "VALOR_STANDBY": 686.38},
+        {"ID_ITEM": "2.3", "REFERENCIA": "LOCAÇÃO DE EQUIPAMENTOS", "DESCRICAO": "Hydrojetting Equipment", "UNIDADE": "Diária", "VALOR_UNITARIO": 1795.50, "VALOR_STANDBY": 1526.18},
+        {"ID_ITEM": "3.1", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Pessoal", "UNIDADE": "Evento", "VALOR_UNITARIO": 1850.00, "VALOR_STANDBY": 1850.00},
+        {"ID_ITEM": "3.2", "REFERENCIA": "MOB/DESMOB", "DESCRICAO": "Equipamento", "UNIDADE": "Evento", "VALOR_UNITARIO": 3350.00, "VALOR_STANDBY": 3350.00},
+    ])
+    
+    st.session_state["df_contrato"] = df_contrato
+
     if "tabelas_tratadas" not in st.session_state or "df_contrato" not in st.session_state:
         st.warning("⚠️ Dados não disponíveis. Vá para as abas anteriores e processe os documentos.")
         st.stop()
