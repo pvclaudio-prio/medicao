@@ -122,8 +122,8 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
 
     # 🔹 Flags de divergência
     df_merged["flag_valor_divergente"] = (
-        (np.round(df_merged["valor_unitario_standby"], 2) != np.round(df_merged["valor_standby"], 2)) |
-        (np.round(df_merged["valor_unitario_operacional"], 2) != np.round(df_merged["valor_unitario"], 2))
+        (np.round(df_merged["valor_unitario_standby"], 2) > np.round(df_merged["valor_standby"], 2)) |
+        (np.round(df_merged["valor_unitario_operacional"], 2) > np.round(df_merged["valor_unitario"], 2))
     ).map({True: "Sim", False: "Não"})
 
     df_merged["dif_total"] = abs((df_merged["total_recalculado"] - df_merged["total_cobrado"]).fillna(0))
