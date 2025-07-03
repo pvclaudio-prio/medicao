@@ -126,8 +126,8 @@ def estruturar_boletim_conciliado(df_boletim_raw: pd.DataFrame, df_contrato: pd.
         (np.round(df_merged["valor_unitario_operacional"], 2) > np.round(df_merged["valor_unitario"], 2))
     ).map({True: "Sim", False: "Não"})
 
-    df_merged["dif_total"] = (df_merged["total_recalculado"] - df_merged["total_cobrado"]).fillna(0)
-    df_merged["flag_total_recalculado_diferente"] = (df_merged["dif_total"] > 1).map({True: "Sim", False: "Não"})
+    df_merged["dif_total"] = (df_merged["total_recalculado"] < df_merged["total_cobrado"])
+    df_merged["flag_total_recalculado_diferente"] = df_merged["dif_total"].map({True: "Sim", False: "Não"})
 
     df_merged["flag_descricao_duplicada"] = df_merged.duplicated(
         subset=["descricao", "descricao_completa"],
