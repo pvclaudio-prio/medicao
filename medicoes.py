@@ -11,6 +11,9 @@ import io
 from PIL import Image
 import pytesseract
 import re
+import openai
+import ssl
+import json
 
 st.set_page_config(page_title="Conciliação de Boletins", layout="wide")
 
@@ -429,9 +432,6 @@ if pagina == "⚖️ Conciliação":
         st.session_state["df_conciliado_atual"] = df_conciliado
 
         if st.button("🤖 Analisar com IA (Multiagente)"):
-            import openai
-            import ssl
-            import json
 
             openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 
