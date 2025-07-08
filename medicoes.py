@@ -375,6 +375,7 @@ if pagina == "🔎 Visualização":
 if pagina == "⚖️ Conciliação":
     st.header("⚖️ Conciliação entre Boletins e Contrato")
 
+    # Base fixa do contrato
     df_contrato = pd.DataFrame([
         {"ID_ITEM": "1.1", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "DIÁRIA DE OPERADOR TÉCNICO", "UNIDADE": "DIÁRIA", "VALOR_UNITARIO": 1672.00, "VALOR_STANDBY": 1337.60},
         {"ID_ITEM": "1.2", "REFERENCIA": "PROFISSIONAL", "DESCRICAO": "DIÁRIA DE SUPERVISOR", "UNIDADE": "DIÁRIA", "VALOR_UNITARIO": 1995.00, "VALOR_STANDBY": 1596.00},
@@ -391,40 +392,30 @@ if pagina == "⚖️ Conciliação":
         "REFERENCIA": "descricao",
         "DESCRICAO": "descricao_completa",
         "UNIDADE": "unidade",
-        "QTD_STANDBY": "qtd_standby",
-        "QTD_OPERACIONAL": "qtd_operacional",
-        "QTD_DOBRA": "qtd_dobra",
-        "QTD_TOTAL": "qtd_total",
         "VALOR_STANDBY": "valor_standby",
-        "VALOR_UNITARIO": "valor_unitario",
-        "VALOR_UNITARIO_DOBRA": "valor_unitario_dobra",
-        "TOTAL_STANDBY": "total_standby",
-        "TOTAL_OPERACIONAL": "total_operacional",
-        "TOTAL_DOBRA": "total_dobra",
-        "TOTAL_COBRADO": "total_cobrado"
+        "VALOR_UNITARIO": "valor_unitario"
     })
-    
+
     st.session_state["df_contrato"] = df_contrato
 
-    if "tabelas_tratadas" not in st.session_state or "df_contrato" not in st.session_state:
-        st.warning("⚠️ Dados não disponíveis. Vá para as abas anteriores e processe os documentos.")
+    if "tabelas_tratadas" not in st.session_state:
+        st.warning("⚠️ Vá para a aba de processamento primeiro.")
         st.stop()
 
     tabelas_tratadas = st.session_state["tabelas_tratadas"]
-    df_contrato = st.session_state["df_contrato"]
     nomes_docs = list(tabelas_tratadas.keys())
 
     if not nomes_docs:
-        st.info("Nenhum documento tratado disponível.")
+        st.info("Nenhum documento disponível.")
         st.stop()
 
-    doc_selecionado = st.selectbox("📄 Selecione o documento para conciliação:", nomes_docs)
+    doc_selecionado = st.selectbox("📄 Selecione o boletim para conciliação:", nomes_docs)
 
     try:
         df_boletim = pd.concat(tabelas_tratadas[doc_selecionado], ignore_index=True)
         df_conciliado = estruturar_boletim_conciliado(df_boletim, df_contrato)
 
-        st.subheader(f"📋 Resultado da Conciliação: {doc_selecionado}")
+        st.subheader("📋 Resultado da Conciliação")
         st.dataframe(df_conciliado)
 
         if st.checkbox("🔍 Mostrar apenas divergências"):
@@ -437,8 +428,55 @@ if pagina == "⚖️ Conciliação":
 
         st.session_state["df_conciliado_atual"] = df_conciliado
 
+        if st.button("🤖 Analisar com IA (Multiagente)"):
+            import openai
+            import ssl
+            import json
+
+            openai.api_key = st.secrets["openai"]["OPENAI_API_KEY"]
+
+            # Para ambientes com certificado SSL inválido
+            ssl._create_default_https_context = ssl._create_unverified_context
+
+            prompt = f"""
+Você é um auditor técnico responsável por revisar boletins de medição conciliados com dados de contrato. 
+Recebeu as tabelas a seguir:
+
+[BOLETIM RAW]
+{df_boletim.to_json(orient="records", indent=2, force_ascii=False)}
+
+[CONTRATO]
+{df_contrato.to_json(orient="records", indent=2, force_ascii=False)}
+
+[CONCILIADO]
+{df_conciliado.to_json(orient="records", indent=2, force_ascii=False)}
+
+Sua missão:
+1. Identificar **inconsistências nos valores cobrados**.
+2. Apontar **possíveis duplicidades de itens**.
+3. Gerar um sumário **objetivo, técnico e direto**, destacando riscos e oportunidades de ajuste.
+
+Responda como um consultor técnico sênior, separando a análise em:
+- Inconsistências de valor
+- Duplicidades
+- Recomendação técnica
+"""
+
+            with st.spinner("Analisando via IA..."):
+                response = openai.ChatCompletion.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": "Você é um consultor técnico em auditoria de contratos."},
+                              {"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    max_tokens=2048
+                )
+
+            resultado_ia = response.choices[0].message.content
+            st.markdown("### 📊 Análise do Agente de IA")
+            st.markdown(resultado_ia)
+
     except Exception as e:
-        st.error(f"Erro ao realizar conciliação: {e}")
+        st.error(f"Erro na conciliação: {e}")
         
 if pagina == "📤 Exportação":
     st.header("📤 Exportação dos Resultados de Conciliação")
