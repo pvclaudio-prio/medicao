@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import fitz  # PyMuPDF
+import fitz
 import openai
 from google.cloud import documentai_v1 as documentai
 from google.oauth2 import service_account
